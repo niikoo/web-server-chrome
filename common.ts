@@ -1,19 +1,46 @@
+import { DirectoryEntryHandler } from './handlers';
 import { WebApplication, BaseHandler, FileSystem } from './webapp';
 import { cloneDeep } from 'lodash';
 import { EntryCache } from "./entrycache";
-import { TextDecoder, EncoderBase } from "./encoding";
+import { TextDecoder, TextEncoder } from "./encoding";
 
 export class WSC {
-  DEBUG = false
-  VERBOSE = false
-  encoderBase = new EncoderBase();
+  static DEBUG = true;
+  static VERBOSE = true;
+  static peerSockMap = {};
+  static app = {
+    opts: {
+      optStatic: null,
+      optRenderIndex: null,
+      optAllInterfaces: null,
+      optModRewriteEnable: false,
+      optModRewriteNegate: false,
+      optModRewriteRegexp: false,
+      optModRewriteTo: null,
+      optPreventSleep: null,
+      optStopIdleServer: null,
+      optDoPortMapping: null,
+      optBackground: null,
+      optCORS: null,
+      optIPV6: null,
+      host: null,
+      auth: null
+    }
+  }
 
-  entryCache: EntryCache = new EntryCache();
-  entryFileCache: EntryCache = new EntryCache();
-  WebApplication = new WebApplication(this);
-  BaseHandler = new BaseHandler(this, this.WebApplication);
+  static template_data;
 
-  getchromeversion() {
+  static entryCache: EntryCache = new EntryCache();
+  static entryFileCache: EntryCache = new EntryCache();
+  static WebApplication = WebApplication;
+  static DirectoryEntryHandler = DirectoryEntryHandler;
+  static FileSystem: any;
+
+  static outpush(arg0: any): any {
+    throw new Error("Method not implemented.");
+  }
+
+  static getchromeversion() {
     let version;
     var match = navigator.userAgent.match(/Chrome\/([\d]+)/)
     if (match) {
@@ -22,14 +49,14 @@ export class WSC {
     return version;
   }
 
-  maybePromise = function (maybePromiseObj, resolveFn, ctx) {
+  static maybePromise(maybePromiseObj, resolveFn, ctx) {
     if (maybePromiseObj && maybePromiseObj.then) {
       return maybePromiseObj.then(function (ret) { return resolveFn.call(ctx, ret); });
     } else {
       return resolveFn.call(ctx, maybePromiseObj);
     }
   }
-  strformat = function (s) {
+  static strformat(s) {
     var args = Array.prototype.slice.call(arguments, 1, arguments.length);
     return s.replace(/{(\d+)}/g, function (match, number) {
       return typeof args[number] != 'undefined'
@@ -38,11 +65,11 @@ export class WSC {
         ;
     });
   }
-  parse_header = function (line) {
+  static parse_header(line) {
     debugger;
   }
 
-  encode_header = function (name, d) {
+  static encode_header(name, d) {
     if (!d) {
       return name
     }
@@ -53,7 +80,7 @@ export class WSC {
         out.push(k)
       } else {
         // quote?
-        this.outpush(k + '=' + v)
+        WSC.outpush(k + '=' + v)
       }
     }
     return out.join('; ')
@@ -61,13 +88,13 @@ export class WSC {
 
   // common stuff
 
-  recursiveGetEntry(filesystem, path, callback, allowFolderCreation) {
+  static recursiveGetEntry(filesystem, path, callback, allowFolderCreation) {
     var useCache = false
     // XXX duplication with jstorrent
     var cacheKey = filesystem.filesystem.name +
       filesystem.fullPath +
       '/' + path.join('/')
-    var inCache = this.entryCache.get(cacheKey)
+    var inCache = WSC.entryCache.get(cacheKey)
     if (useCache && inCache) {
       //console.log('cache hit');
       callback(inCache); return
@@ -75,7 +102,7 @@ export class WSC {
 
     var state = { e: filesystem, path: null }
 
-    function recurse(e) {
+    let recurse = (e) => {
       if (path.length == 0) {
         if (e.name == 'TypeMismatchError') {
           state.e.getDirectory(state.path, { create: false }, recurse, recurse)
@@ -107,7 +134,7 @@ export class WSC {
     recurse(filesystem)
   }
 
-  parseHeaders(lines) {
+  static parseHeaders(lines) {
     var headers = {}
     var line
     // TODO - multi line headers?
@@ -118,7 +145,7 @@ export class WSC {
     }
     return headers
   }
-  ui82str(arr, startOffset) {
+  static ui82str(arr, startOffset) {
     console.assert(arr)
     if (!startOffset) { startOffset = 0 }
     var length = arr.length - startOffset // XXX a few random exceptions here
@@ -128,7 +155,7 @@ export class WSC {
     }
     return str
   }
-  ui82arr(arr, startOffset) {
+  static ui82arr(arr, startOffset) {
     if (!startOffset) { startOffset = 0 }
     var length = arr.length - startOffset
     var outarr = []
@@ -137,21 +164,21 @@ export class WSC {
     }
     return outarr
   }
-  str2ab(s) {
+  static str2ab(s) {
     var arr = []
     for (var i = 0; i < s.length; i++) {
       arr.push(s.charCodeAt(i))
     }
     return new Uint8Array(arr).buffer
   }
-  stringToUint8Array = function (string) {
-    var encoder = new TextEncoder()
-    return encoder.encode(string)
+  static stringToUint8Array = function (string) {
+    var encoder = new TextEncoder(this.encoderBase)
+    return encoder.encode(string, null)
   };
 
-  arrayBufferToString = function (buffer) {
-    var decoder = new TextDecoder(this.encoderBase, undefined, {});
-    return decoder.decode(buffer, {})
+  static arrayBufferToString = function (buffer) {
+    var decoder = new TextDecoder();
+    return decoder.decode(buffer, null)
   };
   /*
       var logToScreen = function(log) {
@@ -160,8 +187,9 @@ export class WSC {
 
   */
 
-  parseUri(str) {
+  static parseUri(str) {
     return new URL(str) // can throw exception, watch out!
   }
 
 }
+

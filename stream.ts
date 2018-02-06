@@ -1,90 +1,90 @@
+/// <reference path="./../../node_modules/@types/chrome/index.d.ts" />
+/// <reference path="./../../node_modules/@types/chrome/chrome-app.d.ts" />
+/// <reference path="./../../node_modules/@types/chrome/chrome-webview.d.ts" />
 import { WSC } from './common';
-export class Stream {
+import { Buffer } from "./buffer";
 
-  constructor (
-    private: _wsc: WSC
-  ) { }
-    var peerSockMap = {}
-_wsc.peerSockMap = peerSockMap
+export class IOStream {
+  readCallback = null
+  readUntilDelimiter = null
+  readBuffer = new Buffer()
+  writeBuffer = new Buffer()
+  writing = false
+  pleaseReadBytes = null
 
-function onTCPReceive(info) {
-  var sockId = info.socketId
-  if (_wsc.peerSockMap[sockId]) {
-    _wsc.peerSockMap[sockId].onReadTCP(info)
+  request;
+  onread;
+
+  remoteclosed = false
+  closed = false
+  connected = true
+
+  halfclose = null
+  onclose = null
+  ondata = null
+  source = null
+  _close_callbacks = []
+  onWriteBufferEmpty = null
+
+  onTCPReceive(info) {
+    var sockId = info.socketId
+    if (WSC.peerSockMap[sockId]) {
+      WSC.peerSockMap[sockId].onReadTCP(info)
+    }
   }
-}
+  constructor (
+    public sockId
+  ) {
+    chrome.sockets.tcp.onReceive.addListener(this.onTCPReceive);
+    chrome.sockets.tcp.onReceiveError.addListener(this.onTCPReceive);
+    WSC.peerSockMap[this.sockId] = this;
+    chrome.sockets.tcp.setPaused(this.sockId, false, this.onUnpaused.bind(this))
+  }
 
-chrome.sockets.tcp.onReceive.addListener(onTCPReceive)
-chrome.sockets.tcp.onReceiveError.addListener(onTCPReceive)
-
-var sockets = chrome.sockets
-function IOStream(sockId) {
-  this.sockId = sockId
-  peerSockMap[this.sockId] = this
-  this.readCallback = null
-  this.readUntilDelimiter = null
-  this.readBuffer = new this._wsc.Buffer
-  this.writeBuffer = new this._wsc.Buffer
-  this.writing = false
-  this.pleaseReadBytes = null
-
-  this.remoteclosed = false
-  this.closed = false
-  this.connected = true
-
-  this.halfclose = null
-  this.onclose = null
-  this.ondata = null
-  this.source = null
-  this._close_callbacks = []
-
-  this.onWriteBufferEmpty = null
-  chrome.sockets.tcp.setPaused(this.sockId, false, this.onUnpaused.bind(this))
-}
-
-IOStream.prototype = {
-  set_close_callback: function (fn) {
+  set_close_callback(fn) {
     this._close_callbacks = [fn]
-  },
-  set_nodelay: function () {
+  }
+  set_nodelay() {
     chrome.sockets.tcp.setNoDelay(this.sockId, true, function () { })
-  },
-  removeHandler: function () {
-    delete peerSockMap[this.sockId]
-  },
-  addCloseCallback: function (cb) {
+  }
+  removeHandler() {
+    delete WSC.peerSockMap[this.sockId]
+  }
+  addCloseCallback(cb) {
     this._close_callbacks.push(cb)
-  },
-  peekstr: function (maxlen) {
-    return this._wscui82str(new Uint8Array(this.readBuffer.deque[0], 0, maxlen))
-  },
-  removeCloseCallback: function (cb) {
+  }
+  peekstr(maxlen) {
+    return WSC.ui82str(new Uint8Array(this.readBuffer.deque[0], 0, maxlen), undefined)
+  }
+  removeCloseCallback(cb) {
     debugger
-  },
-  runCloseCallbacks: function () {
+  }
+  runCloseCallbacks() {
     for (var i = 0; i < this._close_callbacks.length; i++) {
       this._close_callbacks[i](this)
     }
     if (this.onclose) { this.onclose() }
-  },
-  onUnpaused: function (info) {
+  }
+  onUnpaused(info) {
     var lasterr = chrome.runtime.lastError
     if (lasterr) {
       this.close('set unpause fail')
     }
     //console.log('sock unpaused',info)
-  },
-  readUntil: function (delimiter, callback) {
+  }
+  readUntil(delimiter, callback) {
     this.readUntilDelimiter = delimiter
     this.readCallback = callback
     this.checkBuffer()
-  },
-  readBytes: function (numBytes, callback) {
+  }
+
+  readBytes(numBytes, callback) {
     this.pleaseReadBytes = numBytes
     this.readCallback = callback
     this.checkBuffer()
-  },
-  tryWrite: function (callback) {
+  }
+
+  tryWrite(callback) {
     if (this.writing) {
       //console.warn('already writing..');
       return
@@ -95,16 +95,18 @@ IOStream.prototype = {
     }
     //console.log('tryWrite')
     this.writing = true
-    var data = this.writeBuffer.consume_any_max(4096)
-    //console.log(this.sockId,'tcp.send',data.byteLength)
-    //console.log(this.sockId,'tcp.send',_wscui82str(new Uint8Array(data)))
-    sockets.tcp.send(this.sockId, data, this.onWrite.bind(this, callback))
-  },
-  write: function (data) {
+    let data = this.writeBuffer.consume_any_max(4096);
+    if (WSC.DEBUG) {
+      console.log(this.sockId, 'tcp.send', data.byteLength)
+      console.log(this.sockId, 'tcp.send', WSC.ui82str(new Uint8Array(data), 0));
+    }
+    chrome.sockets.tcp.send(this.sockId, <ArrayBuffer>data, this.onWrite.bind(this, callback))
+  }
+  write(data) {
     this.writeBuffer.add(data)
-    this.tryWrite()
-  },
-  onWrite: function (callback, evt) {
+    this.tryWrite(undefined)
+  }
+  onWrite(callback, evt) {
     var err = chrome.runtime.lastError
     if (err) {
       //console.log('socket.send lastError',err)
@@ -129,41 +131,41 @@ IOStream.prototype = {
     } else {
       if (this.onWriteBufferEmpty) { this.onWriteBufferEmpty(); }
     }
-  },
-  onReadTCP: function (evt) {
+  }
+  onReadTCP(evt) {
     var lasterr = chrome.runtime.lastError
     if (lasterr) {
       this.close('read tcp lasterr' + lasterr)
       return
     }
-    //console.log('onRead',_wscui82str(new Uint8Array(evt.data)))
+    //console.log('onRead',WSC.ui82str(new Uint8Array(evt.data)))
     if (evt.resultCode == 0) {
       //this.error({message:'remote closed connection'})
-      this.log('remote closed connection (halfduplex)')
+      console.log('remote closed connection (halfduplex)')
       this.remoteclosed = true
       if (this.halfclose) { this.halfclose() }
       if (this.request) {
         // do we even have a request yet? or like what to do ...
       }
     } else if (evt.resultCode < 0) {
-      this.log('remote killed connection', evt.resultCode)
+      console.log('remote killed connection', evt.resultCode)
       this.error({ message: 'error code', errno: evt.resultCode })
     } else {
       this.readBuffer.add(evt.data)
       if (this.onread) { this.onread() }
       this.checkBuffer()
     }
-  },
-  log: function (msg, msg2, msg3) {
-    if (this._wsc.VERBOSE) {
+  }
+  log(msg, msg2, msg3) {
+    if (WSC.VERBOSE) {
       console.log(this.sockId, msg, msg2, msg3)
     }
-  },
-  checkBuffer: function () {
+  }
+  checkBuffer() {
     //console.log('checkBuffer')
     if (this.readUntilDelimiter) {
       var buf = this.readBuffer.flatten()
-      var str = this._wsc.arrayBufferToString(buf)
+      var str = WSC.arrayBufferToString(buf)
       var idx = str.indexOf(this.readUntilDelimiter)
       if (idx != -1) {
         var callback = this.readCallback
@@ -181,41 +183,41 @@ IOStream.prototype = {
         callback(data)
       }
     }
-  },
-  close: function (reason) {
+  }
+  close(reason = undefined) {
     if (this.closed) { return }
     this.connected = false
     this.closed = true
     this.runCloseCallbacks()
     //console.log('tcp sock close',this.sockId)
-    delete peerSockMap[this.sockId]
-    sockets.tcp.close(this.sockId, this.onClosed.bind(this, reason))
+    delete WSC.peerSockMap[this.sockId]
+    chrome.sockets.tcp.close(this.sockId, this.onClosed.bind(this, reason))
     //this.sockId = null
     this.cleanup()
-  },
-  onClosed: function (reason, info) {
+  }
+  onClosed(reason, info) {
     var lasterr = chrome.runtime.lastError
     if (lasterr) {
       console.log('onClosed', reason, lasterr, info)
     } else {
       //console.log('onClosed',reason,info)
     }
-  },
-  error: function (data) {
+  }
+  error(data) {
     console.warn(this.sockId, 'closed')
     //console.error(this,data)
     // try close by writing 0 bytes
     if (!this.closed) {
       this.close()
     }
-  },
-  checkedCallback: function (callback) {
+  }
+  checkedCallback(callback) {
     var err = chrome.runtime.lastError;
     if (err) {
       console.warn('socket callback lastError', err, callback)
     }
-  },
-  tryClose: function (callback) {
+  }
+  tryClose(callback) {
     if (!callback) { callback = this.checkedCallback }
     if (!this.closed) {
       console.warn('cant close, already closed')
@@ -223,11 +225,9 @@ IOStream.prototype = {
       return
     }
     console.log(this.sockId, 'tryClose')
-    sockets.tcp.send(this.sockId, new ArrayBuffer(256), callback)
-  },
-  cleanup: function () {
-    this.writeBuffer = new this._wsc.Buffer
+    chrome.sockets.tcp.send(this.sockId, new ArrayBuffer(256), callback)
   }
-}
-
+  cleanup() {
+    this.writeBuffer = new Buffer()
+  }
 }

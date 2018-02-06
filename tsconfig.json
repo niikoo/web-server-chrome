@@ -1,40 +1,51 @@
 {
   "compileOnSave": false,
   "compilerOptions": {
-    "outDir": ".",
-    "outFile": "./wsc-chrome.js",
     "sourceMap": true,
     "declaration": true,
+    "baseUrl": ".",
     "emitDecoratorMetadata": true,
     "experimentalDecorators": true,
     "module": "amd",
     "target": "es5",
     "lib": [
+      "es5",
       "es2015",
       "es2016",
       "es6",
       "es7",
       "dom"
     ],
-    "baseUrl": ".",
     "typeRoots": [
       "./../../node_modules/@types/"
     ],
     "types": [
       "node",
-      "chrome",
-      "jquery",
-      "jssha"
+      "chrome"
     ],
-    "moduleResolution": "node",
     "paths": {
-      "jssha": [
-        "./../node_modules/jssha/"
+      "lodash": [
+        "./../../node_modules/lodash/"
       ]
-    }
+    },
+    "moduleResolution": "node"
   },
   "files": [
-    "./*.ts"
+    "buffer.ts",
+    "chromesocketxhr.ts",
+    "common.ts",
+    "connection.ts",
+    "encoding.ts",
+    "entrycache.ts",
+    "handlers.ts",
+    "httplib.ts",
+    "mime.ts",
+    "request.ts",
+    "stream.ts",
+    "upnp.ts",
+    "webapp.ts",
+    "websocket.ts",
+    "wsc-provider.ts"
   ],
   "exclude": [
     "./../../node_modules/**/*",

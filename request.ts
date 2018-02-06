@@ -1,25 +1,28 @@
-export class WSRequest {
+import { HTTPConnection } from './connection';
+export class HTTPRequest {
   method;
   uri;
   version;
-  connection;
+  connection: HTTPConnection;
   headers;
   body;
   bodyparams;
-  arguments = {};
+  arguments = {
+    static: null,
+    json: null,
+    url: null
+  };
   path;
   origpath;
-  HTTPRequest(opts) {
+  constructor (opts) {
     this.method = opts.method
-    this.uri = opts.uri
+    this.uri = opts.uri || '';
     this.version = opts.version
     this.connection = opts.connection
     this.headers = opts.headers
     this.body = null
     this.bodyparams = null
-
-    this.arguments = {}
-    var idx = this.uri.indexOf('?')
+    var idx = this.uri.indexOf('?');
     if (idx != -1) {
       this.path = decodeURIComponent(this.uri.slice(0, idx))
       var s = this.uri.slice(idx + 1)

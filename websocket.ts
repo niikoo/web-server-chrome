@@ -1,15 +1,26 @@
 import { WSC } from './common';
-export class WebScoketHandler {
+import { BaseHandler, WebApplication } from "./webapp";
+import { TextEncoder, TextDecoder } from './encoding';
+
+export class WebScoketHandler extends BaseHandler {
 
   ws_connection = null
   close_code = null
   close_reason = null
   stream = null
   _on_close_called = false
+
+  select_subprotocols: (subprots) => {}
+  get_compression_options: () => {}
+  on_pong: (data) => {}
+  on_close: () => {}
+
   constructor (
-    public _wsc: WSC
+    public app: WebApplication
   ) {
+    super();
   }
+
   get() {
     if (this.getHeader('upgrade', '').toLowerCase() != 'websocket') {
       console.log('connection must be upgrade')
@@ -17,7 +28,7 @@ export class WebScoketHandler {
       this.finish()
       return
     }
-    var origin = this.getHeader('origin')
+    var origin = this.getHeader('origin', undefined)
     if (!this.check_origin(origin)) {
       console.log("origin mismatch")
       this.set_status(403)
@@ -26,7 +37,7 @@ export class WebScoketHandler {
     }
     this.stream = this.request.connection.stream // detach() ?
     this.stream.set_close_callback(this.on_connection_close.bind(this))
-    this.ws_connection = new WebSocketProtocol(this)
+    this.ws_connection = new WebSocketProtocol(this, undefined);
     this.ws_connection.accept_connection()
   }
   write_message(message, binary) {
@@ -37,28 +48,22 @@ export class WebScoketHandler {
       this.ws_connection.write_message(message, binary)
     }
   }
-  select_subprotocols(subprots) {
-  }
-  get_compression_options() {
-  }
   ping(data) {
     console.assert(this.ws_connection)
     this.ws_connection.write_ping(data)
   }
-  on_pong(data) {
-  }
-  on_close() {
-  }
-  close: function (code, reason) {
+
+
+  close(code, reason) {
     if (this.ws_connection) {
       this.ws_connection.close(code, reason)
       this.ws_connection = null
     }
-  },
-  set_nodelay: function (val) {
+  }
+  set_nodelay(val) {
     this.stream.set_nodelay(val)
-  },
-  on_connection_close: function () {
+  }
+  on_connection_close() {
     if (this.ws_connection) {
       this.ws_connection.on_connection_close()
       this.ws_connection = null
@@ -67,8 +72,8 @@ export class WebScoketHandler {
       this._on_close_called = true
       this.on_close()
     }
-  },
-  send_error: function (opts) {
+  }
+  send_error(opts) {
     if (this.stream) {
       this.stream.close()
     } else {
@@ -76,13 +81,31 @@ export class WebScoketHandler {
       // dont have super()
       debugger
     }
-  },
-  check_origin: function (origin) {
+  }
+  check_origin(origin) {
     return true
   }
-}
-for (var m in WSC.BaseHandler.prototype) {
-  WebSocketHandler.prototype[m] = WSC.BaseHandler.prototype[m]
+  compute_accept_value(key, cb) {
+    // sha1 hash etc
+    var keybuf = new TextEncoder('utf-8').encode(key)
+    var magicbuf = new TextEncoder('utf-8').encode(WSPROT.MAGIC)
+    var buf = new Uint8Array(keybuf.length + WSPROT.MAGIC.length)
+    buf.set(keybuf, 0)
+    buf.set(magicbuf, keybuf.length)
+    crypto.subtle.digest({ name: 'SHA-1' }, buf).then(function (result) {
+      var d = btoa(WSC.ui82str(new Uint8Array(result), undefined))
+      cb(d)
+    })
+  }
+  _websocket_mask(mask, data) {
+    // mask is 4 bytes, just keep xor with it
+    var v = new Uint8Array(data)
+    var m = new Uint8Array(mask)
+    for (var i = 0; i < v.length; i++) {
+      v[i] ^= m[i % 4]
+    }
+    return v.buffer
+  }
 }
 
 export var WSPROT = {
@@ -97,78 +120,67 @@ export var WSPROT = {
 WSPROT.RSV_MASK = WSPROT.RSV1 | WSPROT.RSV2 | WSPROT.RSV3
 
 
-function compute_accept_value(key, cb) {
-  // sha1 hash etc
-  var keybuf = new TextEncoder('utf-8').encode(key)
-  var magicbuf = new TextEncoder('utf-8').encode(WSPROT.MAGIC)
-  var buf = new Uint8Array(keybuf.length + WSPROT.MAGIC.length)
-  buf.set(keybuf, 0)
-  buf.set(magicbuf, keybuf.length)
-  crypto.subtle.digest({ name: 'SHA-1' }, buf).then(function (result) {
-    var d = btoa(WSC.ui82str(new Uint8Array(result)))
-    cb(d)
-  })
-}
 
 
-function _websocket_mask(mask, data) {
-  // mask is 4 bytes, just keep xor with it
-  var v = new Uint8Array(data)
-  var m = new Uint8Array(mask)
-  for (var i = 0; i < v.length; i++) {
-    v[i] ^= m[i % 4]
-  }
-  return v.buffer
-}
-
-function WebSocketProtocol(handler, opts) {
-  opts = opts || {}
-  opts.mask_outgoing = opts.mask_outgoing || false
-  opts.compression_options = opts.compression_options || null
-
-  this.handler = handler
-  this.request = handler.request
-  this.stream = handler.stream
-  this.client_terminated = false
-  this.server_terminated = false
-
+export class WebSocketProtocol {
+  client_terminated = false
+  server_terminated = false
+  request;
+  stream;
   // WSprotocol 13
-  this.mask_outgoing = opts.mask_outgoing
-  this._final_frame = false
-  this._frame_opcode = null
-  this._masked_frame = null
-  this._frame_mask = null
-  this._frame_length = null
-  this._fragmented_message_buffer = null
-  this._fragmented_message_opcode = null
-  this._waiting = null
-  this._compression_options = opts.compression_options
-  this._decompressor = null
-  this._compressor = null
-  this._frame_compressed = null
+  mask_outgoing;
+  _final_frame: boolean | number = false;
+  _frame_opcode = null
+  _masked_frame = null
+  _frame_mask = null
+  _frame_length = null
+  _fragmented_message_buffer = null
+  _fragmented_message_opcode = null
+  _waiting = null
+  _compression_options;
+  _decompressor = null
+  _compressor = null
+  _frame_compressed = null
 
-  this._messages_bytes_in = 0
-  this._messages_bytes_out = 0
+  _messages_bytes_in = 0
+  _messages_bytes_out = 0
+  _wire_bytes_in = 0
+  _wire_bytes_out = 0
+  _frame_opcode_is_control;
+  opts;
 
-  this._wire_bytes_out = 0
-  this._wire_bytes_out = 0
-}
-WebSocketProtocol.prototype = {
 
-  accept_connection: function () {
+  on_message: (msg) => {}
+
+  constructor (
+    public handler: WebScoketHandler,
+    opts) {
+    this.opts = opts || {}
+    this._compression_options = opts.compression_options || null;
+    this.mask_outgoing = opts.mask_outgoing || false;
+    this.request = handler.request
+    this.stream = handler.stream
+
+  }
+
+  accept_connection() {
     // TODO add trycatch with abort
     var valid = this._handle_websocket_headers()
     if (!valid) { return this._abort() }
     this._accept_connection()
-  },
-  _challenge_response: function () {
-    return new Promise(function (resolve, reject) {
-      compute_accept_value(this.request.headers['sec-websocket-key'], function (resp) {
+  }
+
+  _challenge_response() {
+    return new Promise((resolve, reject) => {
+      this.handler.compute_accept_value(this.request.headers['sec-websocket-key'], (resp) => {
         resolve(resp)
-      }.bind(this))
-    }.bind(this))
-  },
-  _accept_connection: function () {
+      })
+    })
+  }
+
+  _accept_connection() {
+    let permessage = 0;
+    let deflate = 0;
     var subprot_header = ''
     var subprots = this.request.headers['sec-websocket-protocol'] || ''
     subprots = subprots.split(',').map(function (s) { return s.trim() })
@@ -211,8 +223,9 @@ WebSocketProtocol.prototype = {
       this.handler.open()
       this._receive_frame()
     }.bind(this))
-  },
-  _parse_extensions_header: function (headers) {
+  }
+
+  _parse_extensions_header(headers) {
     var exts = headers['sec-websocket-extensions'] || ''
     if (exts) {
       //var keys = exts.split(';').map(function(s) { return s.trim() }) // broken need WSC.parse_header
@@ -222,16 +235,16 @@ WebSocketProtocol.prototype = {
     } else {
       return []
     }
-  },
-  _process_server_headers: function () {
+  }
+  _process_server_headers() {
     debugger
-  },
-  _get_compressor_options: function (side, agreed_params) {
+  }
+  _get_compressor_options(side, agreed_params) {
     debugger
-  },
-  _create_compressors: function (side, agreed_params) {
-  },
-  _write_frame: function (fin, opcode, data, flags) {
+  }
+  _create_compressors(side, agreed_params) {
+  }
+  _write_frame(fin, opcode, data, flags = undefined) {
     flags = flags | 0
     var b
     var finbit = fin ? WSPROT.FIN : 0
@@ -258,7 +271,7 @@ WebSocketProtocol.prototype = {
       var mask = new Uint8Array(4)
       crypto.getRandomValues(mask)
       frame.push(mask)
-      frame.push(_websocket_mask(mask, data))
+      frame.push(this.handler._websocket_mask(mask, data))
     } else {
       frame.push(data)
     }
@@ -266,8 +279,8 @@ WebSocketProtocol.prototype = {
       this.stream.writeBuffer.add(frame[i].buffer || frame[i])
     }
     this.stream.tryWrite()
-  },
-  write_message: function (message, binary) {
+  }
+  write_message(message, binary) {
     var opcode = binary ? 0x2 : 0x1
     if (binary) {
       if (message instanceof ArrayBuffer) {
@@ -284,16 +297,16 @@ WebSocketProtocol.prototype = {
       debugger
     }
     this._write_frame(true, opcode, msgout, flags)
-  },
-  write_ping: function (data) {
+  }
+  write_ping(data) {
     console.assert(data instanceof ArrayBuffer)
     this._write_frame(true, 0x9, data)
-  },
-  _receive_frame: function () {
+  }
+  _receive_frame() {
     this.stream.readBytes(2, this._on_frame_start.bind(this))
     // XXX have this throw exception if stream is closed on read event
-  },
-  _on_frame_start: function (data) {
+  }
+  _on_frame_start(data) {
     //console.log('_on_frame_start',data.byteLength)
     this._wire_bytes_in += data.byteLength
     var v = new DataView(data, 0, 2)
@@ -335,21 +348,21 @@ WebSocketProtocol.prototype = {
     } else if (payloadlen == 127) {
       this.stream.readBytes(8, this._on_frame_length_64.bind(this))
     }
-  },
-  _on_frame_length_16: function (data) {
+  }
+  _on_frame_length_16(data) {
     //console.log('_on_frame_length_16',data.byteLength)
     this._wire_bytes_in += data.byteLength
     var v = new DataView(data, 0, 2)
     this._frame_length = v.getUint16(0)
     this._on_frame_length_n(data)
-  },
-  _on_frame_length_64: function (data) {
+  }
+  _on_frame_length_64(data) {
     this._wire_bytes_in += data.byteLength
     var v = new DataView(data, 0, 8)
     this._frame_length = v.getUint32(4)
     this._on_frame_length_n(data)
-  },
-  _on_frame_length_n: function (data) {
+  }
+  _on_frame_length_n(data) {
     // todo trycatch abort
     if (this._masked_frame) {
       //console.log('masked frame')
@@ -357,18 +370,18 @@ WebSocketProtocol.prototype = {
     } else {
       this.stream.readBytes(this._frame_length, this._on_frame_data.bind(this))
     }
-  },
-  _on_masking_key: function (data) {
+  }
+  _on_masking_key(data) {
     this._wire_bytes_in += data.byteLength
     //console.log('frame mask', new Uint8Array(data))
     this._frame_mask = data
     // todo try/catch
     this.stream.readBytes(this._frame_length, this._on_masked_frame_data.bind(this))
-  },
-  _on_masked_frame_data: function (data) {
-    this._on_frame_data(_websocket_mask(this._frame_mask, data))
-  },
-  _on_frame_data: function (data) {
+  }
+  _on_masked_frame_data(data) {
+    this._on_frame_data(this.handler._websocket_mask(this._frame_mask, data))
+  }
+  _on_frame_data(data) {
     //console.log('_on_frame_data',data.byteLength)
     var opcode
     this._wire_bytes_in += data.byteLength
@@ -407,8 +420,8 @@ WebSocketProtocol.prototype = {
       this._handle_message(opcode, data)
     if (!this.client_terminated)
       this._receive_frame()
-  },
-  _handle_message: function (opcode, data) {
+  }
+  _handle_message(opcode, data) {
     if (this.client_terminated)
       return
 
@@ -418,10 +431,10 @@ WebSocketProtocol.prototype = {
       this._messages_bytes_in += data.byteLength
       var s = new TextDecoder('utf-8').decode(data)
       // todo try/catch and abort
-      this._run_callback(this.handler.on_message, this.handler, s)
+      this._run_callback(this.on_message, this.handler, s)
     } else if (opcode == 0x2) { // binary
       this._messages_bytes_in += data.byteLength
-      this._run_callback(this.handler.on_message, this.handler, data)
+      this._run_callback(this.on_message, this.handler, data)
     } else if (opcode == 0x8) { // close
       this.client_terminated = true
       if (data.byteLength >= 2) {
@@ -439,8 +452,8 @@ WebSocketProtocol.prototype = {
     } else {
       this._abort()
     }
-  },
-  close: function (code, reason) {
+  }
+  close(code = undefined, reason = undefined) {
     if (!this.server_terminated) {
       if (!this.stream.closed) {
         var close_data
@@ -473,12 +486,12 @@ WebSocketProtocol.prototype = {
       }
     } else if (!this._waiting) {
       // wait for a bit and then call _abort()
-      this._waiting = setTimeout(function () {
+      this._waiting = setTimeout(() => {
         this._abort()
-      }.bind(this), 5)
+      }, 5)
     }
-  },
-  _handle_websocket_headers: function () {
+  }
+  _handle_websocket_headers() {
     var fields = ["host", "sec-websocket-key", "sec-websocket-version"]
     for (var i = 0; i < fields.length; i++) {
       if (!this.request.headers[fields[i]]) {
@@ -486,15 +499,15 @@ WebSocketProtocol.prototype = {
       }
     }
     return true
-  },
-  on_connection_close: function () {
+  }
+  on_connection_close() {
     this._abort()
-  },
-  _run_callback: function (callback, ctx) {
-    callback.apply(ctx, Array.prototype.slice.call(arguments, 2, arguments.length))
+  }
+  _run_callback(callback = undefined, ctx = undefined, ...args) {
+    callback.apply(ctx, ...args)
     // catch an exception and abort if we have one.
-  },
-  _abort: function () {
+  }
+  _abort() {
     this.client_terminated = true
     this.server_terminated = true
     this.stream.close()
@@ -502,29 +515,25 @@ WebSocketProtocol.prototype = {
   }
 }
 
-
+/*
 function ExampleWebSocketHandler() {
   WebSocketHandler.prototype.constructor.call(this)
 }
 ExampleWebSocketHandler.prototype = {
-  open: function () {
+  open() {
     console.log('websocket handler handler.open()')
     window.ws = this
     //this.write_message("hello!")
   },
-  on_message: function (msg) {
+  on_message(msg) {
     console.log('got ws message', msg, msg.byteLength, new Uint8Array(msg))
     //this.write_message('pong')
   },
-  on_close: function () {
+  on_close() {
     debugger
   }
 }
 for (var m in WebSocketHandler.prototype) {
   ExampleWebSocketHandler.prototype[m] = WebSocketHandler.prototype[m]
 }
-
-WSC.ExampleWebSocketHandler = ExampleWebSocketHandler
-WSC.WebSocketHandler = WebSocketHandler
-
-})();
+*/

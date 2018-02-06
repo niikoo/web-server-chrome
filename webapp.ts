@@ -1,13 +1,26 @@
+import { isNil, isFunction } from 'lodash';
 /// <reference path="./../../node_modules/@types/chrome/index.d.ts" />
 /// <reference path="./../../node_modules/@types/chrome/chrome-app.d.ts" />
 /// <reference path="./../../node_modules/@types/chrome/chrome-webview.d.ts" />
 import { WSC } from './common';
-import { WSRequest } from './request';
+import { HTTPRequest } from './request';
+import { MIMETYPES } from "./mime";
+import { UPNP } from "./upnp";
+import { IOStream } from "./stream";
+import { DirectoryEntryHandler, RequestHandler } from "./handlers";
+import { HTTPConnection } from './connection';
+import { HTTPRESPONSES } from './httplib';
+import { TextEncoder } from "./encoding";
 
 export class WebApplication {
   id: string;
-  opts: any;
-  handlers;
+  get opts() {
+    return WSC.app.opts;
+  }
+  set opts(opts) {
+    WSC.app.opts = opts;
+  }
+  handlers = [];
   sockInfo;
   lasterr;
   stopped;
@@ -25,20 +38,20 @@ export class WebApplication {
   on_status_change;
   interfaces = [];
   interface_retry_count;
-  urls;
+  urls = [];
   extra_urls;
+  acceptQueue;
+  handlersMatch = [];
 
-
-  constructor (
-    private _wsc: WSC
-  ) { }
-
-  WebApplication(opts) {
+  constructor (opts) {
     // need to support creating multiple WebApplication...
-    if (this._wsc.DEBUG) {
+    if (WSC.DEBUG) {
       console.log('initialize webapp with opts', opts)
     }
+    WSC.FileSystem = FileSystem;
     opts = opts || {}
+    // Set options globally
+    WSC.app.opts = this.opts;
     this.id = Math.random().toString()
     this.opts = opts
     this.handlers = opts.handlers || []
@@ -118,7 +131,7 @@ export class WebApplication {
       stopped: this.stopped,
       lasterr: this.lasterr
     }
-  },
+  }
   updatedSleepSetting() {
     if (!this.started) {
       chrome.power.releaseKeepAwake()
@@ -126,25 +139,25 @@ export class WebApplication {
     }
     if (this.opts.optPreventSleep) {
       console.log('requesting keep awake system')
-      chrome.power.requestKeepAwake(chrome.power.Level.SYSTEM)
+      chrome.power.requestKeepAwake(chrome.power['Level'].SYSTEM)
     } else {
       console.log('releasing keep awake system')
       chrome.power.releaseKeepAwake()
     }
   }
   on_entry(entry) {
-    var fs = new this._wsc.FileSystem(entry)
+    var fs = new FileSystem(entry)
     this.fs = fs
-    this.add_handler(['.*', this._wsc.DirectoryEntryHandler.bind(null, fs)])
+    this.add_handler(['.*', new DirectoryEntryHandler(fs, null)])
     this.init_handlers()
-    if (this._wsc.DEBUG) {
+    if (WSC.DEBUG) {
       //console.log('setup handler for entry',entry)
     }
     //if (this.opts.optBackground) { this.start() }
   }
   get_host() {
     let host
-    if (this._wsc.getchromeversion() >= 44 && this.opts.optAllInterfaces) {
+    if (WSC.getchromeversion() >= 44 && this.opts.optAllInterfaces) {
       if (this.opts.optIPV6) {
         host = this.opts.host || '::'
       } else {
@@ -160,11 +173,10 @@ export class WebApplication {
   }
   init_handlers() {
     this.handlersMatch = []
-    for (var i = 0; i < this.handlers.length; i++) {
-      var repat = this.handlers[i][0]
-      this.handlersMatch.push([new RegExp(repat), this.handlers[i][1]])
+    for (let handler of this.handlers) {
+      this.handlersMatch.push([new RegExp(handler[0]), handler[1]]);
     }
-    this.change()
+    this.change();
   }
   change() {
     if (this.on_status_change) { this.on_status_change() }
@@ -172,12 +184,12 @@ export class WebApplication {
   start_success(data) {
     if (this.opts.optPreventSleep) {
       console.log('requesting keep awake system')
-      chrome.power.requestKeepAwake(chrome.power.Level.SYSTEM)
+      chrome.power.requestKeepAwake(chrome.power['level'].system)
     }
     let callback = this.start_callback
     this.start_callback = null
     this.registerIdle()
-    if (callback) {
+    if (callback && isFunction(callback)) {
       callback(this.get_info())
     }
     this.change()
@@ -211,7 +223,7 @@ export class WebApplication {
     this.clearIdle()
 
     if (true || this.opts.optPreventSleep) {
-      if (this._wsc.VERBOSE)
+      if (WSC.VERBOSE)
         console.log('trying release keep awake')
       if (chrome.power)
         chrome.power.releaseKeepAwake()
@@ -243,7 +255,7 @@ export class WebApplication {
     if (this._stop_callback) {
       this._stop_callback(reason)
     }
-    if (this._wsc.VERBOSE)
+    if (WSC.VERBOSE)
       console.log('tcpserver onclose', info)
   }
   onDisconnect(reason, info) {
@@ -251,7 +263,7 @@ export class WebApplication {
     if (err) { console.warn(err) }
     this.stopped = true
     this.started = false
-    if (_wsc.VERBOSE)
+    if (WSC.VERBOSE)
       console.log('tcpserver ondisconnect', info)
     if (this.sockInfo) {
       chrome.sockets.tcpServer.close(this.sockInfo.socketId, this.onClose.bind(this, reason))
@@ -268,7 +280,7 @@ export class WebApplication {
     delete this.streams[stream.sockId]
   }
   clearIdle() {
-    if (this._wsc.VERBOSE)
+    if (WSC.VERBOSE)
       console.log('clearIdle')
     if (this._idle_timeout_id) {
       clearTimeout(this._idle_timeout_id)
@@ -283,13 +295,13 @@ export class WebApplication {
   }
   checkIdle() {
     if (this.opts.optStopIdleServer) {
-      if (this._wsc.VERBOSE)
+      if (WSC.VERBOSE)
         console.log('checkIdle')
       for (var key in this.streams) {
         console.log('hit checkIdle, but had streams. returning')
         return
       }
-      this.stop('idle')
+      this.stop('idle', undefined)
     }
   }
   start(callback) {
@@ -323,12 +335,12 @@ export class WebApplication {
     if (info.error) {
       this.error(info)
     } else {
-      if (this._wsc.VERBOSE)
+      if (WSC.VERBOSE)
         console.log('listen port ready', info)
       this.port = info.port
       if (this.opts.optAllInterfaces && this.opts.optDoPortMapping) {
         console.log("WSC", "doing port mapping")
-        this.upnp = new this._wsc.UPNP({ port: this.port, udp: false, searchtime: 2000 })
+        this.upnp = new UPNP({ port: this.port, udp: false, searchtime: 2000 })
         this.upnp.reset(this.onPortmapResult.bind(this))
       } else {
         this.onReady()
@@ -373,7 +385,7 @@ export class WebApplication {
     return this.port + i * 3 + Math.pow(i, 2) * 2
   }
   tryListenOnPort(state, callback) {
-    sockets.tcpServer.getSockets(function (sockets) {
+    this.sockets.tcpServer.getSockets(function (sockets) {
       if (sockets.length == 0) {
         this.doTryListenOnPort(state, callback)
       } else {
@@ -392,7 +404,7 @@ export class WebApplication {
   }
   doTryListenOnPort(state, callback) {
     var opts = this.opts.optBackground ? { name: "WSCListenSocket", persistent: true } : {}
-    sockets.tcpServer.create(opts, this.onServerSocket.bind(this, state, callback))
+    this.sockets.tcpServer.create(opts, this.onServerSocket.bind(this, state, callback))
   }
   onServerSocket(state, callback, sockInfo) {
     var host = this.get_host()
@@ -400,7 +412,7 @@ export class WebApplication {
     var tryPort = this.computePortRetry(state.port_attempts)
     state.port_attempts++
     //console.log('attempting to listen on port',host,tryPort)
-    sockets.tcpServer.listen(this.sockInfo.socketId,
+    this.sockets.tcpServer.listen(this.sockInfo.socketId,
       host,
       tryPort,
       function (result) {
@@ -479,15 +491,15 @@ export class WebApplication {
     // on chromeOS, if there are no foreground windows,
     if (this.opts.optAllInterfaces && chrome.app.window.getAll().length == 0) {
       if (chrome.app.window.getAll().length == 0) {
-        if (window.create_hidden) {
-          create_hidden() // only on chrome OS
+        if (window['create_hidden']) {
+          window['create_hidden']() // only on chrome OS
         }
       }
     }
   }
   bindAcceptCallbacks() {
-    sockets.tcpServer.onAcceptError.addListener(this.onAcceptError.bind(this))
-    sockets.tcpServer.onAccept.addListener(this.onAccept.bind(this))
+    this.sockets.tcpServer.onAcceptError.addListener(this.onAcceptError.bind(this))
+    this.sockets.tcpServer.onAccept.addListener(this.onAccept.bind(this))
   }
   onAcceptError(acceptInfo) {
     if (acceptInfo.socketId != this.sockInfo.socketId) { return }
@@ -499,16 +511,16 @@ export class WebApplication {
     //console.log('onAccept',acceptInfo,this.sockInfo)
     if (acceptInfo.socketId != this.sockInfo.socketId) { return }
     if (acceptInfo.socketId) {
-      var stream = new this._wsc.IOStream(acceptInfo.clientSocketId)
+      var stream = new IOStream(acceptInfo.clientSocketId)
       this.adopt_stream(acceptInfo, stream)
     }
-  },
+  }
   adopt_stream(acceptInfo, stream) {
     this.clearIdle()
     //var stream = new IOStream(acceptInfo.socketId)
     this.streams[acceptInfo.clientSocketId] = stream
     stream.addCloseCallback(this.onStreamClose.bind(this))
-    var connection = new this._wsc.HTTPConnection(stream)
+    var connection = new HTTPConnection(stream)
     connection.addRequestCallback(this.onRequest.bind(this, stream, connection))
     connection.tryRead()
   }
@@ -529,14 +541,12 @@ export class WebApplication {
       }
 
       if (!validAuth) {
-        var handler = new BaseHandler(this._wsc, request);
-
-        handler.app = this
+        let handler = new BaseHandler(); // (request)
         handler.request = request
         handler.setHeader("WWW-Authenticate", "Basic")
-        handler.write("", 401)
+        handler.write('', 401, undefined);
         handler.finish()
-        return
+        return;
       }
     }
 
@@ -546,14 +556,13 @@ export class WebApplication {
         matches !== null && !this.opts.optModRewriteNegate
       ) {
         console.log("Mod rewrite rule matched", matches, this.opts.optModRewriteRegexp, request.uri)
-        var handler = new DirectoryEntryHandler(this.fs, request)
-        handler.rewrite_to = this.opts.optModRewriteTo
+        let handler = new DirectoryEntryHandler(this.fs, request)
+        handler.handler.rewrite_to = this.opts.optModRewriteTo
       }
     }
 
-    function on_handler(re_match, app, requestHandler) {
-      requestHandler.connection = connection
-      requestHandler.app = app
+    let on_handler = (re_match, requestHandler: RequestHandler) => {
+      requestHandler.connection = connection;
       requestHandler.request = request
       stream.lastHandler = requestHandler
       var handlerMethod = requestHandler[request.method.toLowerCase()]
@@ -566,31 +575,35 @@ export class WebApplication {
         return true
       }
     }
-    var handled = false;
+    let handled = undefined;
 
     if (handler) {
-      handled = on_handler(null, this, handler)
+      handled = on_handler(null, handler)
     } else {
+      console.log(this.handlersMatch);
+      console.dir(request);
+      if (WSC.DEBUG) { debugger; }
       for (var i = 0; i < this.handlersMatch.length; i++) {
         var re = this.handlersMatch[i][0]
         var reresult = re.exec(request.uri)
         if (reresult) {
           var re_match = reresult.slice(1)
           var cls = this.handlersMatch[i][1]
-          var requestHandler = new cls(request)
-          handled = on_handler(re_match, this, requestHandler)
-          if (handled) { break }
+          var requestHandler = cls.parse(request);
+          handled = on_handler(re_match, requestHandler)
+          if (handled) {
+            return;
+          }
         }
       }
     }
 
-    if (!handled) {
+    if (isNil(handled) || !handled) {
       console.error('unhandled request', request)
       // create a default handler...
-      var handler = new BaseHandler(this._wsc, request)
-      handler.app = this
+      var handler = new BaseHandler();
       handler.request = request
-      handler.write("Unhandled request. Did you select a folder to serve?", 404)
+      handler.write("Unhandled request. Did you select a folder to serve?", 404, undefined)
       handler.finish()
     }
   }
@@ -598,19 +611,24 @@ export class WebApplication {
 
 
 export class BaseHandler {
+  VERBOSE = false;
+  DEBUG = false;
+  beforefinish: any;
   headersWritten = false
   responseCode = null
   responseHeaders = {}
   responseData = []
   responseLength = null
-  request = new WSRequest();
+  request: HTTPRequest;
+  connection: HTTPConnection;
+  rewrite_to;
+  isDirectoryListing: boolean = false;
+  beforeFinish;
   constructor (
-    public _wsc: WSC,
-    public app: WebApplication
   ) {
   }
   options() {
-    if (this.app.opts.optCORS) {
+    if (WSC.app.opts.optCORS) {
       this.set_status(200)
       this.finish()
     } else {
@@ -649,12 +667,12 @@ export class BaseHandler {
       lines.push('HTTP/1.1 200 OK')
     } else {
       //console.log(this.request.connection.stream.sockId,'response code',code, this.responseLength)
-      lines.push('HTTP/1.1 ' + code + ' ' + this._wsc.HTTPRESPONSES[code])
+      lines.push('HTTP/1.1 ' + code + ' ' + HTTPRESPONSES[code])
     }
     if (this.responseHeaders['transfer-encoding'] === 'chunked') {
       // chunked encoding
     } else {
-      if (this._wsc.VERBOSE) {
+      if (this.VERBOSE) {
         console.log(this.request.connection.stream.sockId, 'response code', code, 'clen', this.responseLength)
       }
       console.assert(typeof this.responseLength == 'number')
@@ -664,7 +682,7 @@ export class BaseHandler {
     var p = this.request.path.split('.')
     if (p.length > 1 && !this.isDirectoryListing) {
       var ext = p[p.length - 1].toLowerCase()
-      var type = this._wsc.MIMETYPES[ext]
+      var type = MIMETYPES[ext]
       if (type) {
         // go ahead and assume utf-8 for text/plain and text/html... (what other types?)
         // also how do we detect this in general? copy from nginx i guess?
@@ -682,18 +700,18 @@ text/vnd.wap.wml, application/x-javascript, and application/rss+xml.
           "application/javascript",
           "application/rss+xml"]
 
-        if (contains(default_types, type)) {
+        if (default_types.indexOf(type) > -1) {
           type += '; charset=utf-8'
         }
         this.setHeader('content-type', type)
       }
     }
 
-    if (this.app.opts.optCORS) {
+    if (WSC.app.opts.optCORS) {
       this.setCORS()
     }
 
-    for (key in this.responseHeaders) {
+    for (let key in this.responseHeaders) {
       lines.push(key + ': ' + this.responseHeaders[key])
     }
     lines.push('\r\n')
@@ -705,9 +723,9 @@ text/vnd.wap.wml, application/x-javascript, and application/rss+xml.
     console.assert(data.byteLength !== undefined)
     var chunkheader = data.byteLength.toString(16) + '\r\n'
     //console.log('write chunk',[chunkheader])
-    this.request.connection.write(_wsc.str2ab(chunkheader))
+    this.request.connection.write(WSC.str2ab(chunkheader))
     this.request.connection.write(data)
-    this.request.connection.write(_wsc.str2ab('\r\n'))
+    this.request.connection.write(WSC.str2ab('\r\n'))
   }
   write(data, code, opt_finish) {
     if (typeof data == "string") {
@@ -741,15 +759,15 @@ text/vnd.wap.wml, application/x-javascript, and application/rss+xml.
     this.request.connection.curRequest = null
     if (this.request.isKeepAlive() && !this.request.connection.stream.remoteclosed) {
       this.request.connection.tryRead()
-      if (_wsc.DEBUG) {
-        //console.log('webapp.finish(keepalive)')
+      if (this.DEBUG) {
+        console.log('webapp.finish(keepalive)')
       }
     } else {
       console.assert(!this.request.connection.stream.onWriteBufferEmpty)
       this.request.connection.stream.onWriteBufferEmpty = () => {
         this.request.connection.close()
-        if (this._wsc.DEBUG) {
-          //console.log('webapp.finish(close)')
+        if (this.DEBUG) {
+          console.log('webapp.finish(close)')
         }
       }
     }
@@ -757,19 +775,18 @@ text/vnd.wap.wml, application/x-javascript, and application/rss+xml.
 }
 
 export class FileSystem {
+  isFile: boolean = null;
   constructor (
-    private _wsc: WSC,
     private entry
   ) {
   }
-  getByPath(path, callback, allowFolderCreation) {
+  getByPath(path, callback, allowFolderCreation = true) {
     if (path == '/') {
-      callback(this.entry)
-      return
+      callback(this.entry);
+      return;
     }
     var parts = path.split('/')
     var newpath = parts.slice(1, parts.length)
-    this._wsc.recursiveGetEntry(this.entry, newpath, callback, allowFolderCreation)
+    WSC.recursiveGetEntry(this.entry, newpath, callback, allowFolderCreation)
   }
 }
-
