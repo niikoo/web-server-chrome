@@ -1,0 +1,124 @@
+export declare const DEFAULT_ENCODING = "utf-8";
+/**
+ * End-of-stream is a special token that signifies no more tokens
+ * are in the stream.
+ * @const
+ */
+export declare const end_of_stream = -1;
+export declare const finished = -1;
+export declare class Stream {
+    /**
+     * @description TOKENS
+     * @memberof Stream
+     */
+    tokens: any;
+    /**
+     * A stream represents an ordered sequence of tokens.
+     *
+     * @constructor
+     * @param {!(Array.<number>|Uint8Array)} tokens Array of tokens that provide the
+     * stream.
+     */
+    constructor(tokens: any);
+    /**
+     * @return {boolean} True if end-of-stream has been hit.
+     */
+    endOfStream(): boolean;
+    /**
+     * When a token is read from a stream, the first token in the
+     * stream must be returned and subsequently removed, and
+     * end-of-stream must be returned otherwise.
+     *
+     * @return {number} Get the next token from the stream, or
+     * end_of_stream.
+     */
+    read(): any;
+    /**
+     * When one or more tokens are prepended to a stream, those tokens
+     * must be inserted, in given order, before the first token in the
+     * stream.
+     *
+     * @param {(number|!Array.<number>)} token The token(s) to prepend to the stream.
+     */
+    prepend(token: any): void;
+    /**
+     * When one or more tokens are pushed to a stream, those tokens
+     * must be inserted, in given order, after the last token in the
+     * stream.
+     *
+     * @param {(number|!Array.<number>)} token The tokens(s) to prepend to the stream.
+     */
+    push(token: any): void;
+}
+export interface IDecoder {
+    /**
+     * @param {Stream} stream The stream of bytes being decoded.
+     * @param {number} bite The next byte read from the stream.
+     * @return {?(number|!Array.<number>)} The next code point(s)
+     *     decoded, or null if not enough data exists in the input
+     *     stream to decode a complete code point, or |finished|.
+     */
+    handler(stream: any, bite: any): any;
+}
+export interface IEncoder {
+    /**
+     * @param {Stream} stream The stream of code points being encoded.
+     * @param {number} code_point Next code point read from the stream.
+     * @return {(number|!Array.<number>)} Byte(s) to emit, or |finished|.
+     */
+    handler: (stream, code_point) => {};
+}
+export declare class TextDecoder {
+    private _encoding;
+    /** @private @type {boolean} */
+    _streaming: boolean;
+    /** @private @type {boolean} */
+    _BOMseen: boolean;
+    /** @private @type {?Decoder} */
+    _decoder: any;
+    /** @private @type {boolean} */
+    _fatal: any;
+    /** @private @type {boolean} */
+    _ignoreBOM: any;
+    options: any;
+    /**
+   * @constructor
+   * @param {string} _encoding The label of the encoding;
+   *     defaults to 'utf-8'.
+   * @param {Object} options
+   */
+    constructor(_encoding?: string, options?: Object);
+    /**
+     * @param {ArrayBufferView} input The buffer of bytes to decode.
+     * @param {IEncodingOptions} options
+     * @return {string} The decoded string.
+     */
+    decode(input: ArrayBufferView, options?: IEncodingOptions): string;
+}
+export interface IEncodingOptions {
+    fatal: boolean;
+}
+/**
+ * @constructor
+ * @param {string=} encoding The label of the encoding;
+ *     defaults to 'utf-8'.
+ * @param {Object=} options
+ */
+export declare class TextEncoder {
+    private encoding;
+    private options;
+    private _encoding;
+    /** @private @type {boolean} */
+    private _streaming;
+    /** @private @type {?Encoder} */
+    private _encoder;
+    /** @private @type {{fatal: boolean}} */
+    private _options;
+    constructor(encoding?: string, options?: IEncodingOptions);
+    /**
+     * @param {string=} opt_string The string to encode.
+     * @param {Object=} options
+     * @return {Uint8Array} Encoded bytes, as a Uint8Array.
+     */
+    encode(opt_string: any, options?: IEncodingOptions): Uint8Array;
+}

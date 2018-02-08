@@ -1,8 +1,11 @@
-import { TextEncoder, TextDecoder } from './encoding';
 import { extend, bind } from 'lodash';
 import { WSC } from './common';
 import { Buffer } from "./buffer";
 import { IOStream } from "./stream";
+
+declare var TextEncoder: any;
+declare var TextDecoder: any;
+
 export class ChromeSocketXMLHttpRequest {
   chunks: any;
   responseDataParsed: { code: any; status: any; proto: any; headers: {}; };
@@ -36,7 +39,7 @@ export class ChromeSocketXMLHttpRequest {
   timeout = 0
   timeoutId = null
 
-  stream = null
+  stream: IOStream;
 
   connecting = false
   writing = false
@@ -69,7 +72,7 @@ export class ChromeSocketXMLHttpRequest {
       async: true
     }
     this.uri = WSC.parseUri(this.opts.url)
-    //console.assert(this.uri.protocol == 'http:') // https not supported for chrome.socket yet
+    console.assert(this.uri.protocol == 'http:') // https not supported for chrome.socket yet
   }
   setRequestHeader(key, val) {
     this.extraHeaders[key] = val
@@ -107,7 +110,7 @@ export class ChromeSocketXMLHttpRequest {
       this.error('unsupported method')
     }
     lines.push(this.opts.method + ' ' + this.uri.pathname + this.uri.search + ' HTTP/1.1')
-    //console.log('making request',lines[0],headers)
+    console.log('making request', lines[0], headers)
     for (var key in headers) {
       lines.push(key + ': ' + headers[key])
     }
@@ -120,7 +123,7 @@ export class ChromeSocketXMLHttpRequest {
   }
   error(data) {
     this._finished = true
-    //console.log('error:',data)
+    console.log('error:', data)
     this.haderror = true
     if (this.onerror) {
       console.assert(typeof data == "object")
@@ -132,26 +135,27 @@ export class ChromeSocketXMLHttpRequest {
     }
   }
   onStreamClose(evt) {
-    //console.log('xhr closed')
+    console.log('xhr closed');
+    this.stream.onDestroy();
     if (!this._finished) {
       this.error({ error: 'stream closed' })
     }
   }
   onCreate(sockInfo) {
     if (this.closed) { return }
-    this.stream = new IOStream(sockInfo.socketId)
+    this.stream = new IOStream(sockInfo.socketId);
     this.stream.addCloseCallback(this.onStreamClose.bind(this))
     this.sockInfo = sockInfo
     this.connecting = true
     var host = this.getHost()
     var port = this.getPort()
-    //console.log('connecting to',host,port)
-    chrome.sockets.tcp.setPaused(sockInfo.socketId, true, function () {
-      chrome.sockets.tcp.connect(sockInfo.socketId, host, port, bind(this.onConnect, this))
-    }.bind(this))
+    console.log('connecting to', host, port)
+    chrome.sockets.tcp.setPaused(sockInfo.socketId, true, () => {
+      chrome.sockets.tcp.connect(sockInfo.socketId, host, port, () => this.onConnect)
+    });
   }
   onConnect(result) {
-    //console.log('connected to',this.getHost())
+    console.log('connected to', this.getHost())
     var lasterr = chrome.runtime.lastError
     if (this.closed) { return }
     this.connecting = false
@@ -178,7 +182,7 @@ export class ChromeSocketXMLHttpRequest {
         this.stream.writeBuffer.add(this.requestBody)
         this.requestBody = null
       }
-      this.stream.tryWrite()
+      this.stream.tryWrite(() => { });
       this.stream.readUntil('\r\n\r\n', this.onHeaders.bind(this))
       chrome.sockets.tcp.setPaused(this.sockInfo.socketId, false, function () { })
     }

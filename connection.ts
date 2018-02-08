@@ -1,10 +1,14 @@
 import { isFunction } from 'lodash';
 import { IOStream } from './stream';
 import { WSC } from './common';
-import { TextDecoder } from "./encoding";
 import { HTTPRequest } from "./request";
+
+declare var TextEncoder: any;
+declare var TextDecoder: any;
+
 export class HTTPConnection {
-  _DEBUG = false
+  _DEBUG = WSC.DEBUG;
+  readonly identifier = ' <C#' + Math.floor(Math.random() * 100) + '>';
   curRequest;
   closed;
   onRequestCallback;
@@ -17,35 +21,42 @@ export class HTTPConnection {
     this.closed = false
   }
 
-  log(msg) {
-    console.log(this.stream.sockId, msg)
+  log(...msg) {
+    if (WSC.DEBUG) {
+      console.log('[LOG]', ...msg, this.identifier);
+    }
   }
   tryRead() {
-    this.stream.readUntil('\r\n\r\n', this.onHeaders.bind(this))
+    this.stream.readUntil('\r\n\r\n', (data) => this.onHeaders(data));
   }
   write(data, callback = null) {
     let buf;
     if (typeof data == 'string') {
       // this is using TextEncoder with utf-8
+      this.log('starting writing utf-8');
       buf = WSC.stringToUint8Array(data).buffer
     } else {
+      this.log('starting writing');
       buf = data
     }
     this.stream.writeBuffer.add(buf)
     this.stream.tryWrite(callback);
   }
   close() {
-    console.log('http conn close')
+    this.log('http conn close')
     this.closed = true
     this.stream.close()
   }
   addRequestCallback(cb) {
+    this.log('Adding request callback: ', cb);
     this.onRequestCallback = cb
   }
   onHeaders(data) {
+    this.log('[HEADERS]', data, 'onHeaders()');
     // TODO - http headers are Latin1, not ascii...
-    var datastr = WSC.arrayBufferToString(data)
+    let datastr = WSC.arrayBufferToString(data);
     var lines = datastr.split('\r\n')
+    this.log('[HEADERS] datastr: ', datastr, lines);
     var firstline = lines[0]
     var flparts = firstline.split(' ')
     var method = flparts[0]

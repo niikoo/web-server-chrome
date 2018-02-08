@@ -1,0 +1,3 @@
+*.bak
+**/ng/**
+**/polymer-ui/bower_components/**

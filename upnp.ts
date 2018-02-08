@@ -8,14 +8,17 @@
 
 // inspiration from https://github.com/indutny/node-nat-upnp
 import { ChromeSocketXMLHttpRequest } from './chromesocketxhr';
+import { Destructor } from './destructor';
 import { WSC } from './common';
-import { TextEncoder, TextDecoder } from "./encoding";
 
-export class UPNP {
+declare var TextEncoder: any;
+declare var TextDecoder: any;
+
+export class UPNP implements Destructor {
   port = 8888;
   name = 'web-server-chrome upnp.js'
   searchtime = 2000
-  ssdp = null;
+  ssdp: SSDP = null;
   callback;
   desiredServices = [
     'urn:schemas-upnp-org:service:WANIPConnection:1',
@@ -54,6 +57,9 @@ export class UPNP {
   allDone(result) {
     if (this.callback) { this.callback(result) }
   }
+  onDestroy() {
+    this.ssdp.cleanup();
+  }
   getInternalAddress() {
     var gatewayhost = this.validGateway.device.url.hostname
     var gateparts = gatewayhost.split('.')
@@ -91,13 +97,15 @@ export class UPNP {
   onSearchStop(info) {
     console.log('UPNP', "search stop")
     this.searching = false
-    this.getIP(function (gotIP) {
+    this.getIP((gotIP) => {
       if (!gotIP) { return this.allDone(false) }
-      this.getMappings(function (mappings) {
-        if (!mappings) { return this.allDone(false) }
+      this.getMappings((mappings) => {
+        if (!mappings) {
+          return this.allDone(false);
+        }
         // check if already exists nice mapping we can use.
-        var internal = this.getInternalAddress()
-        console.log('UPNP', 'got current mappings', mappings, 'internal address', internal)
+        var internal = this.getInternalAddress();
+        console.log('UPNP', 'got current mappings', mappings, 'internal address', internal);
         for (var i = 0; i < mappings.length; i++) {
           if (mappings[i].NewInternalClient == internal &&
             mappings[i].NewInternalPort == this.port &&
@@ -109,19 +117,19 @@ export class UPNP {
             return
           }
         }
-        this.addMapping(this.port, 'TCP', function (result) {
+        this.addMapping(this.port, 'TCP', (result) => {
           console.log('UPNP', 'add TCP mapping result', result)
-          if (this.wantUDP) {
-            this.addMapping(this.port, 'UDP', function (result) {
+          if (result.wantUDP) { // ? was this.wantUDP before going to arrow function
+            this.addMapping(this.port, 'UDP', (result) => {
               console.log('UPNP', 'add UDP mapping result', result)
               this.allDone(result)
             })
           } else {
             this.allDone(result)
           }
-        }.bind(this))
-      }.bind(this))
-    }.bind(this))
+        });
+      });
+    });
   }
   onDevice(info) {
     console.log('UPNP', 'found an internet gateway device', info)
@@ -346,7 +354,7 @@ export class SSDP {
   ssdpPort = 1900
   boundPort = null
   searchdevice = 'urn:schemas-upnp-org:device:InternetGatewayDevice:1'
-  _onReceive;
+  _onReceive: () => void;
   sockMap = {}
   lastError = null
   searching = false

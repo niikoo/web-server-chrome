@@ -3,10 +3,10 @@ import { HTTPRequest } from './request';
 import { ChromeSocketXMLHttpRequest } from './chromesocketxhr';
 import { BaseHandler, FileSystem } from './webapp';
 import { WSC } from './common';
-import { escape, isNil } from 'lodash';
-import { TextEncoder } from './encoding';
+import { escape, isNil, extend } from 'lodash';
+declare var TextEncoder: any;
 
-export type RequestHandler = ProxyHandler | DirectoryEntryHandler | BaseHandler;
+export type RequestHandler = ProxyHandler | DirectoryEntryHandler | DefaultHandler;
 
 export function getEntryFile(entry, callback) {
   // XXX if file is 0 bytes, and then write some data, it stays cached... which is bad...
@@ -14,18 +14,20 @@ export function getEntryFile(entry, callback) {
   var cacheKey = entry.filesystem.name + '/' + entry.fullPath
   var inCache = WSC.entryFileCache.get(cacheKey)
   if (inCache) {
-    //console.log('file cache hit');
-    callback(inCache); return
+    if (WSC.VERBOSE) { console.log('file cache hit', inCache, cacheKey); }
+    callback(inCache);
+    return;
   }
 
   entry.file((file) => {
-    /*if (false) {
-      WSC.entryFileCache.set(cacheKey, file)
-    }*/
+    //if (false) {
+    WSC.entryFileCache.set(cacheKey, file);
+    //}
     callback(file)
-  }, function (evt) {
+  }, (evt) => {
     // todo -- actually respond with the file error?
     // or cleanup the context at least
+    WSC.entryFileCache.unset(cacheKey);
     console.error('entry.file() error', evt)
     debugger
     evt.error = true
@@ -34,26 +36,25 @@ export function getEntryFile(entry, callback) {
   })
 }
 
-export class ProxyHandler {
-  handler = new BaseHandler();
-  connection: HTTPConnection;
+export class ProxyHandler extends BaseHandler {
 
   constructor (
     public validator,
     public request: HTTPRequest) {
+    super();
   }
 
-  parse(request: HTTPRequest) {
+  parse(validator, request: HTTPRequest) {
+    this.validator = validator;
     this.request = request;
-    this.handler.request = request;
     return this;
   }
 
   get() {
     if (!this.validator(this.request)) {
-      this.handler.responseLength = 0
-      this.handler.writeHeaders(403)
-      this.handler.finish()
+      this.responseLength = 0
+      this.writeHeaders(403)
+      this.finish()
       return
     }
     console.log('proxyhandler get', this.request)
@@ -79,17 +80,17 @@ export class ProxyHandler {
 
   onfetched(evt) {
     for (var header in evt.target.headers) {
-      this.handler.setHeader(header, evt.target.headers[header])
+      this.setHeader(header, evt.target.headers[header])
     }
-    this.handler.responseLength = evt.target.response.byteLength
-    this.handler.writeHeaders(evt.target.code)
-    this.handler.write(evt.target.response, undefined, undefined);
-    this.handler.finish()
+    this.responseLength = evt.target.response.byteLength
+    this.writeHeaders(evt.target.code)
+    this.write(evt.target.response, undefined, undefined);
+    this.finish()
   }
 }
 
-export class DirectoryEntryHandler {
-  //debugInterval = setInterval( this.debug.bind(this), 1000)
+export class DirectoryEntryHandler extends BaseHandler {
+  debugInterval;
   entry = null;
   file = null;
   readChunkSize = 4096 * 16;
@@ -99,28 +100,22 @@ export class DirectoryEntryHandler {
   bodyWritten = 0;
   responseLength = 0;
   isDirectoryListing = false;
-  connection: HTTPConnection;
-  handler = new BaseHandler();
   constructor (
     public fs: FileSystem,
-    public request: HTTPRequest = undefined
+    public request: HTTPRequest
   ) {
+    super();
+    // this.debugInterval = setInterval(() => this.debug(), 1000);
     if (!isNil(request)) {
-      this.request.connection.stream.onclose = this.onClose.bind(this);
+      this.request.connection.stream.onclose = () => this.onClose;
     }
   }
-  parse(request: HTTPRequest) {
-    this.request = request;
-    this.handler.request = request;
-    this.request.connection.stream.onclose = this.onClose.bind(this);
-    return this;
-  }
   onClose() {
-    //console.log('closed',this.request.path)
-    clearInterval(this['debugInterval']);
+    console.log('closed', this.request.path)
+    clearInterval(this.debugInterval);
   }
   debug() {
-    //console.log(this.request.connection.stream.sockId,'debug wb:',this.request.connection.stream.writeBuffer.size())
+    console.log(this.request.connection.stream.sockId, 'debug wb:', this.request.connection.stream.writeBuffer.size())
   }
   head() {
     this.get()
@@ -131,8 +126,8 @@ export class DirectoryEntryHandler {
   put() {
     if (!this.opts.optUpload) {
       this.responseLength = 0
-      this.handler.writeHeaders(400)
-      this.handler.finish()
+      this.writeHeaders(400)
+      this.finish()
       return;
     }
 
@@ -183,18 +178,18 @@ export class DirectoryEntryHandler {
   get() {
     //this.request.connection.stream.onWriteBufferEmpty = this.onWriteBufferEmpty.bind(this)
 
-    this.handler.setHeader('accept-ranges', 'bytes')
-    this.handler.setHeader('connection', 'keep-alive')
+    this.setHeader('accept-ranges', 'bytes')
+    this.setHeader('connection', 'keep-alive')
     if (!this.fs) {
-      this.handler.write("error: need to select a directory to serve", 500, undefined);
+      this.write("error: need to select a directory to serve", 500, undefined);
       return
     }
     //var path = decodeURI(this.request.path)
 
     // strip '/' off end of path
 
-    if (this.handler.rewrite_to) {
-      this.fs.getByPath(this.handler.rewrite_to, this.onEntry.bind(this), true)
+    if (this.rewrite_to) {
+      this.fs.getByPath(this.rewrite_to, this.onEntry.bind(this), true)
     } else if (this.fs.isFile) {
       this.onEntry(this.fs)
     } else {
@@ -233,7 +228,7 @@ export class DirectoryEntryHandler {
       console.assert(false)
     } else if (this.bodyWritten == this.responseLength) {
       this.request.connection.stream.onWriteBufferEmpty = null
-      this.handler.finish()
+      this.finish()
       return
     } else {
       if (this.request.connection.stream.remoteclosed) {
@@ -263,16 +258,14 @@ export class DirectoryEntryHandler {
 
     if (this.entry && this.entry.isDirectory && !this.request.origpath.endsWith('/')) {
       var newloc = this.request.origpath + '/'
-      this.handler.setHeader('location', newloc) // XXX - encode latin-1 somehow?
+      this.setHeader('location', newloc) // XXX - encode latin-1 somehow?
       this.responseLength = 0
       //console.log('redirect ->',newloc)
-      this.handler.writeHeaders(301)
+      this.writeHeaders(301)
 
-      this.handler.finish()
+      this.finish()
       return
     }
-
-
 
     if (this.request.connection.stream.closed) {
       console.warn(this.request.connection.stream.sockId, 'request closed while processing request')
@@ -281,18 +274,18 @@ export class DirectoryEntryHandler {
     if (!entry) {
       if (this.request.method == "HEAD") {
         this.responseLength = 0
-        this.handler.writeHeaders(404)
-        this.handler.finish()
+        this.writeHeaders(404)
+        this.finish()
       } else {
-        this.handler.write('no entry', 404, undefined)
+        this.write('no entry', 404, undefined)
       }
     } else if (entry.error) {
       if (this.request.method == "HEAD") {
         this.responseLength = 0
-        this.handler.writeHeaders(404)
-        this.handler.finish()
+        this.writeHeaders(404)
+        this.finish()
       } else {
-        this.handler.write('entry not found: ' + (this.handler.rewrite_to || this.request.path), 404, undefined)
+        this.write('entry not found: ' + (this.rewrite_to || this.request.path), 404, undefined)
       }
     } else if (entry.isFile) {
       this.renderFileContents(entry, undefined)
@@ -312,12 +305,12 @@ export class DirectoryEntryHandler {
         if (WSC.app.opts.optRenderIndex) {
           for (var i = 0; i < results.length; i++) {
             if (results[i].name == 'index.xhtml' || results[i].name == 'index.xhtm') {
-              this.handler.setHeader('content-type', 'application/xhtml+xml; charset=utf-8')
+              this.setHeader('content-type', 'application/xhtml+xml; charset=utf-8')
               this.renderFileContents(results[i], undefined);
               return
             }
             else if (results[i].name == 'index.html' || results[i].name == 'index.htm') {
-              this.handler.setHeader('content-type', 'text/html; charset=utf-8')
+              this.setHeader('content-type', 'text/html; charset=utf-8')
               this.renderFileContents(results[i], undefined);
               return
             }
@@ -356,18 +349,17 @@ export class DirectoryEntryHandler {
   renderFileContents(entry, file) {
     getEntryFile(entry, (file) => {
       if (file instanceof DOMException) {
-        this.handler.write("File not found", 404, undefined)
-        this.handler.finish()
+        this.write("File not found", 404, undefined)
+        this.finish()
         return
       }
       this.file = file
       if (this.request.method == "HEAD") {
         this.responseLength = this.file.size
-        this.handler.writeHeaders(200)
-        this.handler.finish()
+        this.writeHeaders(200)
+        this.finish()
 
-      } else if (this.file.size > this.readChunkSize * 8 ||
-        this.request.headers['range']) {
+      } else if (this.file.size > this.readChunkSize * 8 || this.request.headers['range']) {
         this.request.connection.stream.onWriteBufferEmpty = this.onWriteBufferEmpty.bind(this)
 
         if (this.request.headers['range']) {
@@ -380,11 +372,11 @@ export class DirectoryEntryHandler {
             this.fileOffset = parseInt(rparts[0])
             this.fileEndOffset = this.file.size - 1
             this.responseLength = this.file.size - this.fileOffset;
-            this.handler.setHeader('content-range', 'bytes ' + this.fileOffset + '-' + (this.file.size - 1) + '/' + this.file.size)
+            this.setHeader('content-range', 'bytes ' + this.fileOffset + '-' + (this.file.size - 1) + '/' + this.file.size)
             if (this.fileOffset == 0) {
-              this.handler.writeHeaders(200)
+              this.writeHeaders(200)
             } else {
-              this.handler.writeHeaders(206)
+              this.writeHeaders(206)
             }
 
           } else {
@@ -393,8 +385,8 @@ export class DirectoryEntryHandler {
             this.fileOffset = parseInt(rparts[0])
             this.fileEndOffset = parseInt(rparts[1])
             this.responseLength = this.fileEndOffset - this.fileOffset + 1
-            this.handler.setHeader('content-range', 'bytes ' + this.fileOffset + '-' + (this.fileEndOffset) + '/' + this.file.size)
-            this.handler.writeHeaders(206)
+            this.setHeader('content-range', 'bytes ' + this.fileOffset + '-' + (this.fileEndOffset) + '/' + this.file.size)
+            this.writeHeaders(206)
           }
 
 
@@ -405,20 +397,16 @@ export class DirectoryEntryHandler {
           this.fileOffset = 0
           this.fileEndOffset = this.file.size - 1
           this.responseLength = this.file.size
-          this.handler.writeHeaders(200)
+          this.writeHeaders(200)
         }
 
-
-
-
-
       } else {
-        //console.log(entry,file)
-        var fr = new FileReader
-        var cb = this.onReadEntry.bind(this)
-        fr.onload = cb
-        fr.onerror = cb
-        fr.readAsArrayBuffer(file)
+        // if (WSC.VERBOSE) { console.log('Entry:', entry, 'File:', file); }
+        let fr = new FileReader();
+        let cb = this.onReadEntry.bind(this)
+        fr.onload = cb;
+        fr.onerror = cb;
+        fr.readAsArrayBuffer(file);
       }
     });
   }
@@ -438,8 +426,8 @@ export class DirectoryEntryHandler {
 
   }
   renderDirectoryListingJSON(results) {
-    this.handler.setHeader('content-type', 'application/json; charset=utf-8')
-    this.handler.write(JSON.stringify(results.map(function (f) {
+    this.setHeader('content-type', 'application/json; charset=utf-8')
+    this.write(JSON.stringify(results.map(function (f) {
       return {
         name: f.name,
         fullPath: f.fullPath,
@@ -453,9 +441,9 @@ export class DirectoryEntryHandler {
       return this.renderDirectoryListing(results)
     }
 
-    this.handler.setHeader('transfer-encoding', 'chunked')
-    this.handler.writeHeaders(200)
-    this.handler.writeChunk(WSC.template_data)
+    this.setHeader('transfer-encoding', 'chunked')
+    this.writeHeaders(200)
+    this.writeChunk(WSC.template_data)
     var html = ['<script>start("current directory...")</script>',
       '<script>addRow("..","..",1,"170 B","10/2/15, 8:32:45 PM");</script>']
 
@@ -471,9 +459,9 @@ export class DirectoryEntryHandler {
     }
     var data: string | ArrayBuffer = html.join('\n')
     data = new TextEncoder('utf-8').encode(data).buffer
-    this.handler.writeChunk(data)
+    this.writeChunk(data)
     this.request.connection.write(WSC.str2ab('0\r\n\r\n'))
-    this.handler.finish()
+    this.finish()
   }
   renderDirectoryListing(results) {
     var html = ['<html>']
@@ -493,8 +481,8 @@ export class DirectoryEntryHandler {
       }
     }
     html.push('</ul></html>')
-    this.handler.setHeader('content-type', 'text/html; charset=utf-8')
-    this.handler.write(html.join('\n'), undefined, undefined)
+    this.setHeader('content-type', 'text/html; charset=utf-8')
+    this.write(html.join('\n'), undefined, undefined)
   }
   onReadEntry(evt) {
     if (evt.type == 'error') {
@@ -505,7 +493,16 @@ export class DirectoryEntryHandler {
       this.request.connection.close()
     } else {
       // set mime types etc?
-      this.handler.write(evt.target.result, undefined, undefined);
+      this.write(evt.target.result, undefined, undefined);
     }
+  }
+}
+
+
+export class DefaultHandler extends BaseHandler {
+  constructor (
+    public request: HTTPRequest
+  ) {
+    super();
   }
 }

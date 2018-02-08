@@ -1,9 +1,6 @@
 export class EntryCache {
   cache = {};
 
-  clearTorrent() {
-    // todo
-  }
   clearKey(skey) {
     var todelete = []
     for (var key in this.cache) {

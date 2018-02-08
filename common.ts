@@ -1,12 +1,15 @@
-import { DirectoryEntryHandler } from './handlers';
+import { HTTPRequest } from './request';
+import { DirectoryEntryHandler, RequestHandler } from './handlers';
 import { WebApplication, BaseHandler, FileSystem } from './webapp';
-import { cloneDeep } from 'lodash';
+import { clone } from 'lodash';
 import { EntryCache } from "./entrycache";
-import { TextDecoder, TextEncoder } from "./encoding";
+
+declare var TextEncoder: any;
+declare var TextDecoder: any;
 
 export class WSC {
   static DEBUG = true;
-  static VERBOSE = true;
+  static VERBOSE = false;
   static peerSockMap = {};
   static app = {
     opts: {
@@ -35,6 +38,10 @@ export class WSC {
   static WebApplication = WebApplication;
   static DirectoryEntryHandler = DirectoryEntryHandler;
   static FileSystem: any;
+
+  static prepareHandler(handler, ...params) {
+    return () => new handler(...params);
+  }
 
   static outpush(arg0: any): any {
     throw new Error("Method not implemented.");
@@ -122,7 +129,7 @@ export class WSC {
           e.getDirectory(path.shift(), { create: !!allowFolderCreation }, recurse, recurse)
         } else {
           state.e = e;
-          state.path = cloneDeep(path);
+          state.path = clone(path);
           e.getFile(path.shift(), { create: false }, recurse, recurse)
         }
       } else if (e.name == 'NotFoundError') {

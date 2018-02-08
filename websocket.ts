@@ -1,8 +1,11 @@
+import { HTTPRequest } from './request';
 import { WSC } from './common';
 import { BaseHandler, WebApplication } from "./webapp";
-import { TextEncoder, TextDecoder } from './encoding';
 
-export class WebScoketHandler extends BaseHandler {
+declare var TextEncoder: any;
+declare var TextDecoder: any;
+
+export class WebSocketHandler extends BaseHandler {
 
   ws_connection = null
   close_code = null
@@ -16,9 +19,11 @@ export class WebScoketHandler extends BaseHandler {
   on_close: () => {}
 
   constructor (
-    public app: WebApplication
+    public app: WebApplication,
+    public request: HTTPRequest
   ) {
     super();
+    console.log('Constructing websocket');
   }
 
   get() {
@@ -153,7 +158,7 @@ export class WebSocketProtocol {
   on_message: (msg) => {}
 
   constructor (
-    public handler: WebScoketHandler,
+    public handler: WebSocketHandler,
     opts) {
     this.opts = opts || {}
     this._compression_options = opts.compression_options || null;

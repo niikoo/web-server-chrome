@@ -1,18 +1,21 @@
-import { isNil, isFunction } from 'lodash';
 /// <reference path="./../../node_modules/@types/chrome/index.d.ts" />
 /// <reference path="./../../node_modules/@types/chrome/chrome-app.d.ts" />
 /// <reference path="./../../node_modules/@types/chrome/chrome-webview.d.ts" />
+import { Destructor } from './destructor';
+import { HttpRequest } from '@angular/common/http';
+import { isNil, isFunction } from 'lodash';
 import { WSC } from './common';
 import { HTTPRequest } from './request';
 import { MIMETYPES } from "./mime";
 import { UPNP } from "./upnp";
 import { IOStream } from "./stream";
-import { DirectoryEntryHandler, RequestHandler } from "./handlers";
+import { DirectoryEntryHandler, RequestHandler, DefaultHandler } from "./handlers";
 import { HTTPConnection } from './connection';
 import { HTTPRESPONSES } from './httplib';
-import { TextEncoder } from "./encoding";
 
-export class WebApplication {
+declare var TextEncoder: any;
+
+export class WebApplication implements Destructor {
   id: string;
   get opts() {
     return WSC.app.opts;
@@ -30,7 +33,7 @@ export class WebApplication {
   started;
   fs;
   streams;
-  upnp;
+  upnp: UPNP;
   sockets = chrome.sockets
   host;
   port;
@@ -41,7 +44,7 @@ export class WebApplication {
   urls = [];
   extra_urls;
   acceptQueue;
-  handlersMatch = [];
+  handlersMatch: [RegExp, any][] = [];
 
   constructor (opts) {
     // need to support creating multiple WebApplication...
@@ -49,23 +52,22 @@ export class WebApplication {
       console.log('initialize webapp with opts', opts)
     }
     WSC.FileSystem = FileSystem;
-    opts = opts || {}
+    this.opts = opts || {}
     // Set options globally
     WSC.app.opts = this.opts;
-    this.id = Math.random().toString()
-    this.opts = opts
-    this.handlers = opts.handlers || []
-    this.init_handlers()
-    this.sockInfo = null
-    this.lasterr = null
-    this.stopped = false
-    this.starting = false
-    this.start_callback = null
-    this._stop_callback = null
-    this.started = false
-    this.fs = null
-    this.streams = {}
-    this.upnp = null
+    this.id = Math.random().toString();
+    this.handlers = opts.handlers || [];
+    this.sockInfo = null;
+    this.lasterr = null;
+    this.stopped = false;
+    this.starting = false;
+    this.start_callback = null;
+    this._stop_callback = null;
+    this.started = false;
+    this.fs = null;
+    this.streams = {};
+    this.upnp = null;
+    this.init_handlers();
     if (opts.retainstr) {
       // special option to setup a handler
       chrome.fileSystem.restoreEntry(opts.retainstr, function (entry) {
@@ -91,9 +93,15 @@ export class WebApplication {
     this.extra_urls = []
     if (this.port > 65535 || this.port < 1024) {
       var err = 'bad port: ' + this.port
-      this.error(err)
+      this.error(err);
     }
     this.acceptQueue = []
+  }
+
+  onDestroy() {
+    this.sockets.tcpServer.onAcceptError.removeListener(() => { });
+    this.sockets.tcpServer.onAccept.removeListener(() => { });
+    this.upnp.onDestroy();
   }
 
   processAcceptQueue() {
@@ -109,16 +117,16 @@ export class WebApplication {
       case 'optDoPortMapping':
         if (!v) {
           if (this.upnp) {
-            this.upnp.removeMapping(this.port, 'TCP', function (result) {
+            this.upnp.removeMapping(this.port, 'TCP', (result) => {
               console.log('result of removing port mapping', result)
               this.extra_urls = []
               this.upnp = null
               //this.init_urls() // misleading because active connections are not terminated
               //this.change()
-            }.bind(this))
+            });
           }
         }
-        break
+        break;
     }
   }
   get_info() {
@@ -148,7 +156,7 @@ export class WebApplication {
   on_entry(entry) {
     var fs = new FileSystem(entry)
     this.fs = fs
-    this.add_handler(['.*', new DirectoryEntryHandler(fs, null)])
+    this.add_handler(['.*', WSC.prepareHandler(DirectoryEntryHandler, fs, null)])
     this.init_handlers()
     if (WSC.DEBUG) {
       //console.log('setup handler for entry',entry)
@@ -269,7 +277,7 @@ export class WebApplication {
       chrome.sockets.tcpServer.close(this.sockInfo.socketId, this.onClose.bind(this, reason))
     }
   }
-  onStreamClose(stream) {
+  onStreamClose(stream: IOStream) {
     console.assert(stream.sockId)
     if (this.opts.optStopIdleServer) {
       for (var key in this.streams) {
@@ -277,6 +285,7 @@ export class WebApplication {
         break;
       }
     }
+    stream.onDestroy();
     delete this.streams[stream.sockId]
   }
   clearIdle() {
@@ -498,34 +507,36 @@ export class WebApplication {
     }
   }
   bindAcceptCallbacks() {
-    this.sockets.tcpServer.onAcceptError.addListener(this.onAcceptError.bind(this))
-    this.sockets.tcpServer.onAccept.addListener(this.onAccept.bind(this))
+    this.sockets.tcpServer.onAcceptError.addListener((argsError: chrome.sockets.tcpServer.AcceptErrorEventArgs) => this.onAcceptError(argsError))
+    this.sockets.tcpServer.onAccept.addListener((args: chrome.sockets.tcpServer.AcceptEventArgs) => this.onAccept(args));
   }
-  onAcceptError(acceptInfo) {
+
+  onAcceptError(acceptInfo: chrome.sockets.tcpServer.AcceptErrorEventArgs) {
     if (acceptInfo.socketId != this.sockInfo.socketId) { return }
     // need to check against this.socketInfo.socketId
     console.error('accept error', this.sockInfo.socketId, acceptInfo)
     // set unpaused, etc
   }
-  onAccept(acceptInfo) {
-    //console.log('onAccept',acceptInfo,this.sockInfo)
-    if (acceptInfo.socketId != this.sockInfo.socketId) { return }
+  onAccept(acceptInfo: chrome.sockets.tcpServer.AcceptEventArgs) {
+    if (WSC.VERBOSE) console.log('onAccept', acceptInfo, this.sockInfo)
+    if (acceptInfo.socketId != this.sockInfo.socketId) { return; }
     if (acceptInfo.socketId) {
-      var stream = new IOStream(acceptInfo.clientSocketId)
-      this.adopt_stream(acceptInfo, stream)
+      let stream = new IOStream(acceptInfo.clientSocketId);
+      this.adopt_stream(acceptInfo, stream);
     }
   }
+
   adopt_stream(acceptInfo, stream) {
     this.clearIdle()
     //var stream = new IOStream(acceptInfo.socketId)
-    this.streams[acceptInfo.clientSocketId] = stream
-    stream.addCloseCallback(this.onStreamClose.bind(this))
-    var connection = new HTTPConnection(stream)
-    connection.addRequestCallback(this.onRequest.bind(this, stream, connection))
+    this.streams[acceptInfo.clientSocketId] = stream;
+    stream.addCloseCallback((stream) => this.onStreamClose(stream));
+    let connection = new HTTPConnection(stream);
+    connection.addRequestCallback((request) => this.onRequest(stream, connection, request));
     connection.tryRead()
   }
   onRequest(stream, connection, request) {
-    console.log('Request', request.method, request.uri)
+    if (WSC.VERBOSE) console.log('Request', request.method, request.uri)
 
     if (this.opts.auth) {
       var validAuth = false
@@ -541,8 +552,7 @@ export class WebApplication {
       }
 
       if (!validAuth) {
-        let handler = new BaseHandler(); // (request)
-        handler.request = request
+        let handler = new DefaultHandler(request); // (request)
         handler.setHeader("WWW-Authenticate", "Basic")
         handler.write('', 401, undefined);
         handler.finish()
@@ -556,41 +566,40 @@ export class WebApplication {
         matches !== null && !this.opts.optModRewriteNegate
       ) {
         console.log("Mod rewrite rule matched", matches, this.opts.optModRewriteRegexp, request.uri)
-        let handler = new DirectoryEntryHandler(this.fs, request)
-        handler.handler.rewrite_to = this.opts.optModRewriteTo
+        let handler = new DirectoryEntryHandler(this.fs, request);
+        handler.rewrite_to = this.opts.optModRewriteTo;
       }
     }
 
-    let on_handler = (re_match, requestHandler: RequestHandler) => {
-      requestHandler.connection = connection;
-      requestHandler.request = request
-      stream.lastHandler = requestHandler
-      var handlerMethod = requestHandler[request.method.toLowerCase()]
-      var preHandlerMethod = requestHandler['before_' + request.method.toLowerCase()]
+    let on_handler = (re_match, requestHandler: RequestHandler): boolean => {
+      requestHandler.request = request;
+      stream.lastHandler = requestHandler;
+      var handlerMethod = requestHandler[request.method.toLowerCase()];
+      var preHandlerMethod = requestHandler['before_' + request.method.toLowerCase()];
       if (preHandlerMethod) {
-        preHandlerMethod.apply(requestHandler, re_match)
+        preHandlerMethod.apply(requestHandler, re_match);
       }
       if (handlerMethod) {
-        handlerMethod.apply(requestHandler, re_match)
-        return true
+        handlerMethod.apply(requestHandler, re_match);
+        return true;
       }
+      return false;
     }
-    let handled = undefined;
+    let handled = false;
 
     if (handler) {
       handled = on_handler(null, handler)
     } else {
-      console.log(this.handlersMatch);
-      console.dir(request);
-      if (WSC.DEBUG) { debugger; }
-      for (var i = 0; i < this.handlersMatch.length; i++) {
-        var re = this.handlersMatch[i][0]
-        var reresult = re.exec(request.uri)
+      // if(WSC.VERBOSE) console.log(this.handlersMatch);
+      // if(WSC.VERBOSE) console.dir(request);
+      // if (WSC.DEBUG) { debugger; }
+      for (let handlerEntry of this.handlersMatch) {
+        let re = handlerEntry[0];
+        let reresult = re.exec(request.uri)
         if (reresult) {
-          var re_match = reresult.slice(1)
-          var cls = this.handlersMatch[i][1]
-          var requestHandler = cls.parse(request);
-          handled = on_handler(re_match, requestHandler)
+          let re_match = reresult.slice(1)
+          let cls = handlerEntry[1];
+          handled = on_handler(re_match, new cls);
           if (handled) {
             return;
           }
@@ -601,8 +610,7 @@ export class WebApplication {
     if (isNil(handled) || !handled) {
       console.error('unhandled request', request)
       // create a default handler...
-      var handler = new BaseHandler();
-      handler.request = request
+      var handler = new DefaultHandler(request);
       handler.write("Unhandled request. Did you select a folder to serve?", 404, undefined)
       handler.finish()
     }
@@ -610,7 +618,7 @@ export class WebApplication {
 }
 
 
-export class BaseHandler {
+export abstract class BaseHandler {
   VERBOSE = false;
   DEBUG = false;
   beforefinish: any;
@@ -618,15 +626,12 @@ export class BaseHandler {
   responseCode = null
   responseHeaders = {}
   responseData = []
-  responseLength = null
-  request: HTTPRequest;
-  connection: HTTPConnection;
+  responseLength = null;
   rewrite_to;
   isDirectoryListing: boolean = false;
   beforeFinish;
-  constructor (
-  ) {
-  }
+  abstract request: HTTPRequest;
+
   options() {
     if (WSC.app.opts.optCORS) {
       this.set_status(200)
@@ -636,11 +641,13 @@ export class BaseHandler {
       this.finish()
     }
   }
+
   setCORS() {
-    this.setHeader('access-control-allow-origin', '*')
-    this.setHeader('access-control-allow-methods', 'GET, POST, PUT')
-    this.setHeader('access-control-max-age', '120')
+    this.setHeader('access-control-allow-origin', '*');
+    this.setHeader('access-control-allow-methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    this.setHeader('access-control-max-age', '120');
   }
+
   get_argument(key, def) {
     if (this.request.arguments[key] !== undefined) {
       return this.request.arguments[key]
@@ -652,7 +659,7 @@ export class BaseHandler {
     return this.request.headers[k] || defaultvalue
   }
   setHeader(k, v) {
-    this.responseHeaders[k] = v
+    this.responseHeaders[k] = v;
   }
   set_status(code) {
     console.assert(!this.headersWritten)
@@ -716,13 +723,13 @@ text/vnd.wap.wml, application/x-javascript, and application/rss+xml.
     }
     lines.push('\r\n')
     var headerstr = lines.join('\r\n')
-    //console.log('write headers',headerstr)
+    if (this.VERBOSE) console.log('write headers', headerstr)
     this.request.connection.write(headerstr, callback)
   }
   writeChunk(data) {
     console.assert(data.byteLength !== undefined)
     var chunkheader = data.byteLength.toString(16) + '\r\n'
-    //console.log('write chunk',[chunkheader])
+    if (this.VERBOSE) console.log('write chunk', [chunkheader])
     this.request.connection.write(WSC.str2ab(chunkheader))
     this.request.connection.write(data)
     this.request.connection.write(WSC.str2ab('\r\n'))
@@ -730,8 +737,8 @@ text/vnd.wap.wml, application/x-javascript, and application/rss+xml.
   write(data, code, opt_finish) {
     if (typeof data == "string") {
       // using .write directly can be dumb/dangerous. Better to pass explicit array buffers
-      //console.warn('putting strings into write is not well tested with multi byte characters')
-      data = new TextEncoder('utf-8').encode(data).buffer
+      if (this.VERBOSE) console.warn('putting strings into write is not well tested with multi byte characters')
+      data = new TextEncoder('utf-8').encode(data).buffer;
     }
 
     console.assert(data.byteLength !== undefined)
