@@ -1,5 +1,5 @@
 
-import { WSC } from "./common";
+import { WSC } from './common';
 
 window['getWSC'] = () => {
   return WSC;

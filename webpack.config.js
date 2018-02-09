@@ -40,30 +40,30 @@ var regExcludes = [/\.d\.ts$/];
 var config = {
   devtool: 'inline-source-map',
   entry: {
-    "./wsc_chrome/web-server-chrome/": globArray(["**/*.ts", "!**/*.d.ts"], { cwd: path.resolve(__dirname, 'wsc-chrome', 'web-server-chrome') + '/' }),
+    "./": globArray(["**/*.ts", "!**/*.d.ts"], { cwd: path.resolve(__dirname) + '/' }),
   },
   output: {
-    path: path.resolve(__dirname, 'wsc-chrome', 'web-server-chrome'),
+    path: path.resolve(__dirname),
     filename: 'wsc-chrome.js'
   },
   resolve: {
     // Add '.ts' and '.tsx' as a resolvable extension.
-    extensions: [".js", ".ts", ".tsx"]
+    extensions: [".ts", ".tsx"]
   },
   module: {
     loaders: [
       // all files with a '.ts' or '.tsx' extension will be handled by 'ts-loader'
       {
-        test: /\.?s?$/,
+        test: /\.ts?$/,
         loader: [
-          { loader: "awesome-typescript-loader", options: { configFileName: path.resolve(__dirname, 'wsc-chrome', 'web-server-chrome', 'tsconfig.json') } }
+          { loader: "awesome-typescript-loader", options: { configFileName: path.resolve(__dirname, 'tsconfig.json') } }
         ],
         exclude: [/node_modules/, nodeModulesPath]
       }
     ]
   },
   plugins: [
-    /*new UglifyJSPlugin({
+    new UglifyJSPlugin({
       uglifyOptions: {
         ie8: false,
         ecma: 8,
@@ -72,7 +72,7 @@ var config = {
           beautify: false
         }
       }
-    }),*/
+    })
   ]
 };
 module.exports = config;

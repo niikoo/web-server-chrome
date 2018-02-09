@@ -24,6 +24,7 @@ export class WSC {
       optStopIdleServer: null,
       optDoPortMapping: null,
       optBackground: null,
+      optTryOtherPorts: false,
       optCORS: null,
       optIPV6: null,
       host: null,

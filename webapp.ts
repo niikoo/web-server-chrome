@@ -1,19 +1,19 @@
-/// <reference path="./../../node_modules/@types/chrome/index.d.ts" />
-/// <reference path="./../../node_modules/@types/chrome/chrome-app.d.ts" />
-/// <reference path="./../../node_modules/@types/chrome/chrome-webview.d.ts" />
+/// <reference path='./../../node_modules/@types/chrome/index.d.ts' />
+/// <reference path='./../../node_modules/@types/chrome/chrome-app.d.ts' />
+/// <reference path='./../../node_modules/@types/chrome/chrome-webview.d.ts' />
 import { Destructor } from './destructor';
 import { HttpRequest } from '@angular/common/http';
 import { isNil, isFunction } from 'lodash';
 import { WSC } from './common';
 import { HTTPRequest } from './request';
-import { MIMETYPES } from "./mime";
-import { UPNP } from "./upnp";
-import { IOStream } from "./stream";
-import { DirectoryEntryHandler, RequestHandler, DefaultHandler } from "./handlers";
+import { MIMETYPES } from './mime';
+import { UPNP } from './upnp';
+import { IOStream } from './stream';
+import { DirectoryEntryHandler, RequestHandler, DefaultHandler } from './handlers';
 import { HTTPConnection } from './connection';
 import { HTTPRESPONSES } from './httplib';
 
-declare var TextEncoder: any;
+declare let TextEncoder: any;
 
 export class WebApplication implements Destructor {
   id: string;
@@ -92,7 +92,7 @@ export class WebApplication implements Destructor {
     this.urls = []
     this.extra_urls = []
     if (this.port > 65535 || this.port < 1024) {
-      var err = 'bad port: ' + this.port
+      let err = 'bad port: ' + this.port
       this.error(err);
     }
     this.acceptQueue = []
@@ -107,7 +107,7 @@ export class WebApplication implements Destructor {
   processAcceptQueue() {
     console.log('process accept queue len', this.acceptQueue.length)
     while (this.acceptQueue.length > 0) {
-      var sockInfo = this.acceptQueue.shift()
+      let sockInfo = this.acceptQueue.shift()
       this.onAccept(sockInfo)
     }
   }
@@ -154,7 +154,7 @@ export class WebApplication implements Destructor {
     }
   }
   on_entry(entry) {
-    var fs = new FileSystem(entry)
+    let fs = new FileSystem(entry)
     this.fs = fs
     this.add_handler(['.*', WSC.prepareHandler(DirectoryEntryHandler, fs, null)])
     this.init_handlers()
@@ -207,7 +207,7 @@ export class WebApplication implements Destructor {
       chrome.power.releaseKeepAwake()
     }
     this.interface_retry_count = 0
-    var callback = this.start_callback
+    let callback = this.start_callback
     this.starting = false
     this.stopped = true
     this.start_callback = null
@@ -249,14 +249,14 @@ export class WebApplication implements Destructor {
     this.started = false
     this.stopped = true
     chrome.sockets.tcpServer.disconnect(this.sockInfo.socketId, this.onDisconnect.bind(this, reason))
-    for (var key in this.streams) {
+    for (let key in this.streams) {
       this.streams[key].close()
     }
     this.change()
     // also disconnect any open connections...
   }
   onClose(reason, info) {
-    var err = chrome.runtime.lastError
+    let err = chrome.runtime.lastError
     if (err) { console.warn(err) }
     this.stopped = true
     this.started = false
@@ -267,7 +267,7 @@ export class WebApplication implements Destructor {
       console.log('tcpserver onclose', info)
   }
   onDisconnect(reason, info) {
-    var err = chrome.runtime.lastError
+    let err = chrome.runtime.lastError
     if (err) { console.warn(err) }
     this.stopped = true
     this.started = false
@@ -280,7 +280,7 @@ export class WebApplication implements Destructor {
   onStreamClose(stream: IOStream) {
     console.assert(stream.sockId)
     if (this.opts.optStopIdleServer) {
-      for (var key in this.streams) {
+      for (let key in this.streams) {
         this.registerIdle()
         break;
       }
@@ -306,7 +306,7 @@ export class WebApplication implements Destructor {
     if (this.opts.optStopIdleServer) {
       if (WSC.VERBOSE)
         console.log('checkIdle')
-      for (var key in this.streams) {
+      for (let key in this.streams) {
         console.log('hit checkIdle, but had streams. returning')
         return
       }
@@ -321,7 +321,7 @@ export class WebApplication implements Destructor {
         this.urls = []
     }*/
     if (this.starting || this.started) {
-      console.error("already starting or started")
+      console.error('already starting or started')
       return
     }
     this.start_callback = callback
@@ -330,38 +330,39 @@ export class WebApplication implements Destructor {
     this.change()
 
     // need to setup some things
-    if (this.interfaces.length == 0 && this.opts.optAllInterfaces) {
-      this.getInterfaces({ interface_retry_count: 0 }, this.startOnInterfaces.bind(this))
+    if (this.interfaces.length === 0 && this.opts.optAllInterfaces) {
+      this.getInterfaces({ interface_retry_count: 0 }, () => this.startOnInterfaces());
     } else {
-      this.startOnInterfaces()
+      this.startOnInterfaces();
     }
   }
   startOnInterfaces() {
     // this.interfaces should be populated now (or could be empty, but we tried!)
-    this.tryListenOnPort({ port_attempts: 0 }, this.onListenPortReady.bind(this))
+    this.tryListenOnPort({ port_attempts: 0 }, (info) => this.onListenPortReady(info));
   }
   onListenPortReady(info) {
     if (info.error) {
-      this.error(info)
+      this.error(info);
     } else {
-      if (WSC.VERBOSE)
-        console.log('listen port ready', info)
-      this.port = info.port
+      if (WSC.VERBOSE) {
+        console.log('listen port ready', info);
+      }
+      this.port = info.port;
       if (this.opts.optAllInterfaces && this.opts.optDoPortMapping) {
-        console.log("WSC", "doing port mapping")
-        this.upnp = new UPNP({ port: this.port, udp: false, searchtime: 2000 })
-        this.upnp.reset(this.onPortmapResult.bind(this))
+        console.log('WSC', 'doing port mapping');
+        this.upnp = new UPNP({ port: this.port, udp: false, searchtime: 2000 });
+        this.upnp.reset((result) => this.onPortmapResult(result));
       } else {
-        this.onReady()
+        this.onReady();
       }
     }
   }
   onPortmapResult(result) {
-    var gateway = this.upnp.validGateway
+    let gateway = this.upnp.validGateway;
     console.log('portmap result', result, gateway)
     if (result && !result.error) {
       if (gateway.device && gateway.device.externalIP) {
-        var extIP = gateway.device.externalIP
+        let extIP = gateway.device.externalIP
         this.extra_urls = [{ url: 'http://' + extIP + ':' + this.port }]
       }
     }
@@ -380,8 +381,8 @@ export class WebApplication implements Destructor {
   init_urls() {
     this.urls = [].concat(this.extra_urls)
     this.urls.push({ url: 'http://127.0.0.1:' + this.port })
-    for (var i = 0; i < this.interfaces.length; i++) {
-      var iface = this.interfaces[i]
+    for (let i = 0; i < this.interfaces.length; i++) {
+      let iface = this.interfaces[i]
       if (iface.prefixLength > 24) {
         this.urls.push({ url: 'http://[' + iface.address + ']:' + this.port })
       } else {
@@ -394,13 +395,13 @@ export class WebApplication implements Destructor {
     return this.port + i * 3 + Math.pow(i, 2) * 2
   }
   tryListenOnPort(state, callback) {
-    this.sockets.tcpServer.getSockets(function (sockets) {
-      if (sockets.length == 0) {
+    this.sockets.tcpServer.getSockets((sockets) => {
+      if (sockets.length === 0) {
         this.doTryListenOnPort(state, callback)
       } else {
-        var match = sockets.filter(function (s) { return s.name == 'WSCListenSocket' })
-        if (match && match.length == 1) {
-          var m = match[0]
+        let match = sockets.filter((s) => s.name === 'WSCListenSocket');
+        if (match && match.length === 1) {
+          let m = match[0]
           console.log('adopting existing persistent socket', m)
           this.sockInfo = m
           this.port = m.localPort
@@ -409,36 +410,36 @@ export class WebApplication implements Destructor {
         }
         this.doTryListenOnPort(state, callback)
       }
-    }.bind(this))
+    })
   }
   doTryListenOnPort(state, callback) {
-    var opts = this.opts.optBackground ? { name: "WSCListenSocket", persistent: true } : {}
+    let opts = this.opts.optBackground ? { name: 'WSCListenSocket', persistent: true } : {}
     this.sockets.tcpServer.create(opts, this.onServerSocket.bind(this, state, callback))
   }
   onServerSocket(state, callback, sockInfo) {
-    var host = this.get_host()
+    let host = this.get_host()
     this.sockInfo = sockInfo
-    var tryPort = this.computePortRetry(state.port_attempts)
+    let tryPort = this.computePortRetry(state.port_attempts)
     state.port_attempts++
     //console.log('attempting to listen on port',host,tryPort)
     this.sockets.tcpServer.listen(this.sockInfo.socketId,
       host,
       tryPort,
-      function (result) {
-        var lasterr = chrome.runtime.lastError
+      (result) => {
+        let lasterr = chrome.runtime.lastError
         if (lasterr || result < 0) {
           console.log('lasterr listen on port', tryPort, lasterr, result)
           if (this.opts.optTryOtherPorts && state.port_attempts < 5) {
             this.tryListenOnPort(state, callback)
           } else {
-            var errInfo = { error: "Could not listen", attempts: state.port_attempts, code: result, lasterr: lasterr }
+            let errInfo = { error: 'Could not listen', attempts: state.port_attempts, code: result, lasterr: lasterr }
             //this.error(errInfo)
             callback(errInfo)
           }
         } else {
           callback({ port: tryPort })
         }
-      }.bind(this)
+      }
     )
   }
   getInterfaces(state, callback) {
@@ -446,7 +447,7 @@ export class WebApplication implements Destructor {
     chrome.system.network.getNetworkInterfaces(function (result) {
       console.log('network interfaces', result)
       if (result) {
-        for (var i = 0; i < result.length; i++) {
+        for (let i = 0; i < result.length; i++) {
           if (this.opts.optIPV6 || result[i].prefixLength <= 24) {
             if (result[i].address.startsWith('fe80::')) { continue }
             this.interfaces.push(result[i])
@@ -484,7 +485,7 @@ export class WebApplication implements Destructor {
       chrome.system.network.getNetworkInterfaces( function(result) {
           console.log('refreshed network interfaces',result)
           if (result) {
-              for (var i=0; i<result.length; i++) {
+              for (let i=0; i<result.length; i++) {
                   if (result[i].prefixLength < 64) {
                       //this.urls.push({url:'http://'+result[i].address+':' + this.port})
                       this.interfaces.push(result[i])
@@ -528,22 +529,24 @@ export class WebApplication implements Destructor {
 
   adopt_stream(acceptInfo, stream) {
     this.clearIdle()
-    //var stream = new IOStream(acceptInfo.socketId)
+    //let stream = new IOStream(acceptInfo.socketId)
     this.streams[acceptInfo.clientSocketId] = stream;
-    stream.addCloseCallback((stream) => this.onStreamClose(stream));
+    stream.addCloseCallback((streamData) => this.onStreamClose(streamData));
     let connection = new HTTPConnection(stream);
     connection.addRequestCallback((request) => this.onRequest(stream, connection, request));
     connection.tryRead()
   }
   onRequest(stream, connection, request) {
-    if (WSC.VERBOSE) console.log('Request', request.method, request.uri)
+    if (WSC.VERBOSE) {
+      console.log('Request', request.method, request.uri);
+    }
 
     if (this.opts.auth) {
-      var validAuth = false
-      var auth = request.headers['authorization']
+      let validAuth = false;
+      let auth = request.headers['authorization'];
       if (auth) {
         if (auth.slice(0, 6).toLowerCase() == 'basic ') {
-          var userpass = atob(auth.slice(6, auth.length)).split(':')
+          let userpass = atob(auth.slice(6, auth.length)).split(':')
           if (userpass[0] == this.opts.auth.username &&
             userpass[1] == this.opts.auth.password) {
             validAuth = true
@@ -553,7 +556,7 @@ export class WebApplication implements Destructor {
 
       if (!validAuth) {
         let handler = new DefaultHandler(request); // (request)
-        handler.setHeader("WWW-Authenticate", "Basic")
+        handler.setHeader('WWW-Authenticate', 'Basic')
         handler.write('', 401, undefined);
         handler.finish()
         return;
@@ -561,11 +564,11 @@ export class WebApplication implements Destructor {
     }
 
     if (this.opts.optModRewriteEnable) {
-      var matches = request.uri.match(this.opts.optModRewriteRegexp)
+      let matches = request.uri.match(this.opts.optModRewriteRegexp)
       if (matches === null && this.opts.optModRewriteNegate ||
         matches !== null && !this.opts.optModRewriteNegate
       ) {
-        console.log("Mod rewrite rule matched", matches, this.opts.optModRewriteRegexp, request.uri)
+        console.log('Mod rewrite rule matched', matches, this.opts.optModRewriteRegexp, request.uri)
         let handler = new DirectoryEntryHandler(this.fs, request);
         handler.rewrite_to = this.opts.optModRewriteTo;
       }
@@ -574,8 +577,8 @@ export class WebApplication implements Destructor {
     let on_handler = (re_match, requestHandler: RequestHandler): boolean => {
       requestHandler.request = request;
       stream.lastHandler = requestHandler;
-      var handlerMethod = requestHandler[request.method.toLowerCase()];
-      var preHandlerMethod = requestHandler['before_' + request.method.toLowerCase()];
+      let handlerMethod = requestHandler[request.method.toLowerCase()];
+      let preHandlerMethod = requestHandler['before_' + request.method.toLowerCase()];
       if (preHandlerMethod) {
         preHandlerMethod.apply(requestHandler, re_match);
       }
@@ -610,8 +613,8 @@ export class WebApplication implements Destructor {
     if (isNil(handled) || !handled) {
       console.error('unhandled request', request)
       // create a default handler...
-      var handler = new DefaultHandler(request);
-      handler.write("Unhandled request. Did you select a folder to serve?", 404, undefined)
+      let handler = new DefaultHandler(request);
+      handler.write('Unhandled request. Did you select a folder to serve?', 404, undefined)
       handler.finish()
     }
   }
@@ -669,7 +672,7 @@ export abstract class BaseHandler {
   writeHeaders(code = undefined, callback = undefined) {
     if (code === undefined || isNaN(code)) { code = this.responseCode || 200 }
     this.headersWritten = true
-    var lines = []
+    let lines = []
     if (code == 200) {
       lines.push('HTTP/1.1 200 OK')
     } else {
@@ -686,10 +689,10 @@ export abstract class BaseHandler {
       lines.push('content-length: ' + this.responseLength)
     }
 
-    var p = this.request.path.split('.')
+    let p = this.request.path.split('.')
     if (p.length > 1 && !this.isDirectoryListing) {
-      var ext = p[p.length - 1].toLowerCase()
-      var type = MIMETYPES[ext]
+      let ext = p[p.length - 1].toLowerCase()
+      let type = MIMETYPES[ext]
       if (type) {
         // go ahead and assume utf-8 for text/plain and text/html... (what other types?)
         // also how do we detect this in general? copy from nginx i guess?
@@ -700,12 +703,12 @@ Changes with nginx 0.7.9                                         12 Aug 2008
 MIME types: text/html, text/css, text/xml, text/plain,
 text/vnd.wap.wml, application/x-javascript, and application/rss+xml.
 */
-        var default_types = ['text/html',
+        let default_types = ['text/html',
           'text/xml',
           'text/plain',
-          "text/vnd.wap.wml",
-          "application/javascript",
-          "application/rss+xml"]
+          'text/vnd.wap.wml',
+          'application/javascript',
+          'application/rss+xml']
 
         if (default_types.indexOf(type) > -1) {
           type += '; charset=utf-8'
@@ -715,66 +718,70 @@ text/vnd.wap.wml, application/x-javascript, and application/rss+xml.
     }
 
     if (WSC.app.opts.optCORS) {
-      this.setCORS()
+      this.setCORS();
     }
 
     for (let key in this.responseHeaders) {
-      lines.push(key + ': ' + this.responseHeaders[key])
+      if (this.responseHeaders[key]) {
+        lines.push(key + ': ' + this.responseHeaders[key])
+      }
     }
     lines.push('\r\n')
-    var headerstr = lines.join('\r\n')
+    let headerstr = lines.join('\r\n')
     if (this.VERBOSE) console.log('write headers', headerstr)
     this.request.connection.write(headerstr, callback)
   }
   writeChunk(data) {
     console.assert(data.byteLength !== undefined)
-    var chunkheader = data.byteLength.toString(16) + '\r\n'
+    let chunkheader = data.byteLength.toString(16) + '\r\n'
     if (this.VERBOSE) console.log('write chunk', [chunkheader])
     this.request.connection.write(WSC.str2ab(chunkheader))
     this.request.connection.write(data)
     this.request.connection.write(WSC.str2ab('\r\n'))
   }
   write(data, code, opt_finish) {
-    if (typeof data == "string") {
+    if (typeof data === 'string') {
       // using .write directly can be dumb/dangerous. Better to pass explicit array buffers
       if (this.VERBOSE) console.warn('putting strings into write is not well tested with multi byte characters')
       data = new TextEncoder('utf-8').encode(data).buffer;
     }
 
     console.assert(data.byteLength !== undefined)
-    if (code === undefined) { code = 200 }
-    this.responseData.push(data)
-    this.responseLength += data.byteLength
+    if (isNil(code)) {
+      code = 200;
+    }
+    this.responseData.push(data);
+    this.responseLength += data.byteLength;
     // todo - support chunked response?
     if (!this.headersWritten) {
-      this.writeHeaders(code)
+      this.writeHeaders(code);
     }
-    for (var i = 0; i < this.responseData.length; i++) {
-      this.request.connection.write(this.responseData[i])
+    for (let i = 0; i < this.responseData.length; i++) {
+      this.request.connection.write(this.responseData[i]);
     }
-    this.responseData = []
+    this.responseData = [];
     if (opt_finish !== false) {
-      this.finish()
+      this.finish();
     }
   }
   finish() {
     if (!this.headersWritten) {
-      this.responseLength = 0
-      this.writeHeaders()
+      this.responseLength = 0;
+      this.writeHeaders();
     }
-    if (this.beforefinish) { this.beforefinish() }
-    this.request.connection.curRequest = null
+    if (this.beforefinish) { this.beforefinish(); }
+    this.request.connection.curRequest = null;
     if (this.request.isKeepAlive() && !this.request.connection.stream.remoteclosed) {
-      this.request.connection.tryRead()
+      this.request.connection.tryRead();
       if (this.DEBUG) {
-        console.log('webapp.finish(keepalive)')
+        console.log('webapp.finish(keepalive)');
       }
     } else {
-      console.assert(!this.request.connection.stream.onWriteBufferEmpty)
+      console.assert(!this.request.connection.stream.onWriteBufferEmpty);
       this.request.connection.stream.onWriteBufferEmpty = () => {
-        this.request.connection.close()
+        this.request.connection.close();
         if (this.DEBUG) {
-          console.log('webapp.finish(close)')
+          console.log('webapp.finish(close)');
         }
       }
     }
@@ -787,13 +794,13 @@ export class FileSystem {
     private entry
   ) {
   }
-  getByPath(path, callback, allowFolderCreation = true) {
+  getByPath(path: string, callback, allowFolderCreation = true) {
     if (path == '/') {
       callback(this.entry);
       return;
     }
-    var parts = path.split('/')
-    var newpath = parts.slice(1, parts.length)
-    WSC.recursiveGetEntry(this.entry, newpath, callback, allowFolderCreation)
+    let parts = path.split('/');
+    let newpath = parts.slice(1, parts.length);
+    WSC.recursiveGetEntry(this.entry, newpath, callback, allowFolderCreation);
   }
 }
