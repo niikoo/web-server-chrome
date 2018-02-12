@@ -18,6 +18,7 @@ export declare class WSC {
             optStopIdleServer: any;
             optDoPortMapping: any;
             optBackground: any;
+            optTryOtherPorts: boolean;
             optCORS: any;
             optIPV6: any;
             host: any;

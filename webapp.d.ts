@@ -3,8 +3,8 @@
 /// <reference path="../../node_modules/@types/chrome/chrome-webview.d.ts" />
 import { Destructor } from './destructor';
 import { HTTPRequest } from './request';
-import { UPNP } from "./upnp";
-import { IOStream } from "./stream";
+import { UPNP } from './upnp';
+import { IOStream } from './stream';
 export declare class WebApplication implements Destructor {
     id: string;
     opts: {
@@ -19,6 +19,7 @@ export declare class WebApplication implements Destructor {
         optStopIdleServer: any;
         optDoPortMapping: any;
         optBackground: any;
+        optTryOtherPorts: boolean;
         optCORS: any;
         optIPV6: any;
         host: any;
@@ -65,6 +66,7 @@ export declare class WebApplication implements Destructor {
             optStopIdleServer: any;
             optDoPortMapping: any;
             optBackground: any;
+            optTryOtherPorts: boolean;
             optCORS: any;
             optIPV6: any;
             host: any;
@@ -137,5 +139,5 @@ export declare class FileSystem {
     private entry;
     isFile: boolean;
     constructor(entry: any);
-    getByPath(path: any, callback: any, allowFolderCreation?: boolean): void;
+    getByPath(path: string, callback: any, allowFolderCreation?: boolean): void;
 }

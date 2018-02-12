@@ -540,6 +540,7 @@ export class WebApplication implements Destructor {
     if (WSC.VERBOSE) {
       console.log('Request', request.method, request.uri);
     }
+    let handler;
 
     if (this.opts.auth) {
       let validAuth = false;
@@ -555,7 +556,7 @@ export class WebApplication implements Destructor {
       }
 
       if (!validAuth) {
-        let handler = new DefaultHandler(request); // (request)
+        handler = new DefaultHandler(request); // (request)
         handler.setHeader('WWW-Authenticate', 'Basic')
         handler.write('', 401, undefined);
         handler.finish()

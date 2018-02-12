@@ -1,5 +1,14 @@
 import { HTTPRequest } from './request';
-import { BaseHandler, WebApplication } from "./webapp";
+import { BaseHandler, WebApplication } from './webapp';
+export declare const WSPROT: {
+    FIN: number;
+    RSV1: number;
+    RSV2: number;
+    RSV3: number;
+    OPCODE_MASK: number;
+    MAGIC: string;
+    RSV_MASK: number;
+};
 export declare class WebSocketHandler extends BaseHandler {
     app: WebApplication;
     request: HTTPRequest;
@@ -24,15 +33,6 @@ export declare class WebSocketHandler extends BaseHandler {
     compute_accept_value(key: any, cb: any): void;
     _websocket_mask(mask: any, data: any): ArrayBuffer;
 }
-export declare var WSPROT: {
-    FIN: number;
-    RSV1: number;
-    RSV2: number;
-    RSV3: number;
-    OPCODE_MASK: number;
-    MAGIC: string;
-    RSV_MASK: any;
-};
 export declare class WebSocketProtocol {
     handler: WebSocketHandler;
     client_terminated: boolean;
@@ -68,7 +68,7 @@ export declare class WebSocketProtocol {
     _get_compressor_options(side: any, agreed_params: any): void;
     _create_compressors(side: any, agreed_params: any): void;
     _write_frame(fin: any, opcode: any, data: any, flags?: any): void;
-    write_message(message: any, binary: any): void;
+    write_message(message: ArrayBuffer, binary: number): void;
     write_ping(data: any): void;
     _receive_frame(): void;
     _on_frame_start(data: any): void;

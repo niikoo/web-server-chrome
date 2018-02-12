@@ -51,7 +51,7 @@ var config = {
     extensions: [".ts", ".tsx"]
   },
   module: {
-    rules: [
+    /*rules: [
       {
         test: /\.ts$/,
         enforce: "pre",
@@ -60,10 +60,10 @@ var config = {
         options: {
           emitError: true,
           outputReport: true,
-          configFile: '.eslintrc.json'
+          configFile: 'tslint.json'
         }
       }
-    ],
+    ],*/
     loaders: [
       // all files with a '.ts' or '.tsx' extension will be handled by 'ts-loader'
       {

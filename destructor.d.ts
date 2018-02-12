@@ -1,6 +1,6 @@
-export declare abstract class Destructor {
+export interface Destructor {
     /**
      * @description Destroy class
      */
-    abstract onDestroy: () => void;
+    onDestroy(): void;
 }
