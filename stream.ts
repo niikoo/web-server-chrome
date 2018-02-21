@@ -3,7 +3,7 @@
 /// <reference path="./../../node_modules/@types/chrome/chrome-webview.d.ts" />
 import { Destructor } from './destructor';
 import { WSC } from './common';
-import { Buffer } from "./buffer";
+import { Buffer } from './buffer';
 
 export class IOStream implements Destructor {
   readonly streamID = ' <S#' + Math.floor(Math.random() * 100) + '>';
@@ -29,7 +29,7 @@ export class IOStream implements Destructor {
   onWriteBufferEmpty = null;
 
   onTCPReceive(info) {
-    var sockId = info.socketId
+    let sockId = info.socketId;
     if (WSC.peerSockMap[sockId]) {
       WSC.peerSockMap[sockId].onReadTCP(info)
     }
@@ -37,7 +37,9 @@ export class IOStream implements Destructor {
   constructor (
     public sockId
   ) {
-    if (WSC.VERBOSE) console.info('New IOStream created with sockID:', sockId, );;
+    if (WSC.VERBOSE) {
+      console.info('New IOStream created with sockID:', sockId, );
+    }
     chrome.sockets.tcp.onReceive.addListener(this.onTCPReceive);
     chrome.sockets.tcp.onReceiveError.addListener(this.onTCPReceive);
     WSC.peerSockMap[this.sockId] = this;
@@ -66,16 +68,16 @@ export class IOStream implements Destructor {
     return WSC.ui82str(new Uint8Array(this.readBuffer.deque[0], 0, maxlen), undefined)
   }
   removeCloseCallback(cb) {
-    debugger
+    debugger;
   }
   runCloseCallbacks() {
-    for (var i = 0; i < this._close_callbacks.length; i++) {
+    for (let i = 0; i < this._close_callbacks.length; i++) {
       this._close_callbacks[i](this)
     }
     if (this.onclose) { this.onclose() }
   }
   onUnpaused(info) {
-    var lasterr = chrome.runtime.lastError
+    let lasterr = chrome.runtime.lastError
     if (lasterr) {
       this.close('set unpause fail');
     }
@@ -98,18 +100,18 @@ export class IOStream implements Destructor {
   tryWrite(callback) {
     if (this.writing) {
       // console.warn('already writing..');
-      return
+      return;
     }
     if (this.closed) {
       console.warn(this.sockId, 'cant write, closed');
-      return
+      return;
     }
     this.log('tryWrite');
-    this.writing = true
+    this.writing = true;
     let data = this.writeBuffer.consume_any_max(4096);
     if (WSC.VERBOSE) {
-      this.debug(this.sockId, 'tcp.send', data.byteLength);
-      this.debug(this.sockId, 'tcp.send', WSC.ui82str(new Uint8Array(data), 0));
+      // this.debug(this.sockId, 'tcp.send', data.byteLength);
+      // this.debug(this.sockId, 'tcp.send', WSC.ui82str(new Uint8Array(data), 0));
     }
     chrome.sockets.tcp.send(this.sockId, <ArrayBuffer>data, (sendInfo) => this.onWrite(callback, sendInfo))
   }
@@ -118,23 +120,23 @@ export class IOStream implements Destructor {
     this.tryWrite(undefined)
   }
   onWrite(callback, evt) {
-    var err = chrome.runtime.lastError
+    let err = chrome.runtime.lastError;
     if (err) {
       this.log('socket.send lastError', err);
       // this.tryClose()
       this.close('writeerr' + err)
-      return
+      return;
     }
 
     // look at evt!
     if (evt.bytesWritten <= 0) {
       this.log('onwrite fail, closing', evt);
-      this.close('writerr<0')
-      return
+      this.close('writerr<0');
+      return;
     }
-    this.writing = false
+    this.writing = false;
     if (this.writeBuffer.size() > 0) {
-      this.log('write more...');
+      // this.log('write more...');
       if (this.closed) {
         this.debug('closed');
       } else {
@@ -154,13 +156,13 @@ export class IOStream implements Destructor {
     }
   }
   onReadTCP(evt) {
-    var lasterr = chrome.runtime.lastError
+    let lasterr = chrome.runtime.lastError
     if (lasterr) {
       this.close('read tcp lasterr' + lasterr + ' ')
       return
     }
-    this.log('onRead', WSC.ui82str(new Uint8Array(evt.data), null));
-    if (evt.resultCode == 0) {
+    // this.log('onRead', WSC.ui82str(new Uint8Array(evt.data), null));
+    if (evt.resultCode === 0) {
       //this.error({message:'remote closed connection'})
       this.log('remote closed connection (halfduplex)');
       this.remoteclosed = true
@@ -191,20 +193,20 @@ export class IOStream implements Destructor {
   checkBuffer() {
     this.log('checkBuffer');
     if (this.readUntilDelimiter) {
-      var buf = this.readBuffer.flatten()
-      var str = WSC.arrayBufferToString(buf)
-      var idx = str.indexOf(this.readUntilDelimiter)
-      if (idx != -1) {
-        var callback = this.readCallback
-        var toret = this.readBuffer.consume(idx + this.readUntilDelimiter.length)
+      let buf = this.readBuffer.flatten()
+      let str = WSC.arrayBufferToString(buf)
+      let idx = str.indexOf(this.readUntilDelimiter)
+      if (idx !== -1) {
+        let callback = this.readCallback
+        let toret = this.readBuffer.consume(idx + this.readUntilDelimiter.length)
         this.readUntilDelimiter = null
         this.readCallback = null
         callback(toret)
       }
     } else if (this.pleaseReadBytes !== null) {
       if (this.readBuffer.size() >= this.pleaseReadBytes) {
-        var data = this.readBuffer.consume(this.pleaseReadBytes);
-        var callback = this.readCallback;
+        let data = this.readBuffer.consume(this.pleaseReadBytes);
+        let callback = this.readCallback;
         this.readCallback = null;
         this.pleaseReadBytes = null;
         callback(data);
@@ -223,7 +225,7 @@ export class IOStream implements Destructor {
     this.cleanup()
   }
   onClosed(reason, info) {
-    var lasterr = chrome.runtime.lastError;
+    let lasterr = chrome.runtime.lastError;
     if (lasterr) {
       this.log('onClosed', reason, lasterr, info);
     } else {
@@ -245,7 +247,7 @@ export class IOStream implements Destructor {
     }
   }
   checkedCallback(callback) {
-    var err = chrome.runtime.lastError;
+    let err = chrome.runtime.lastError;
     if (err) {
       console.warn('socket callback lastError', err, callback, );
     }

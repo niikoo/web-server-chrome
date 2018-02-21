@@ -15,6 +15,7 @@ if (navigator.userAgent.match('OS X')) {
 window.WSC = window['getWSC']();
 
 function onchoosefolder(entry) {
+  console.log(entry);
   if (entry) {
     var retainstr = chrome.fileSystem.retainEntry(entry)
     var d = { 'retainstr': retainstr }
@@ -42,7 +43,7 @@ function settings_ready(d) {
 chrome.storage.local.get(null, settings_ready)
 
 function maybeStartup() {
-  if (getting_settings) { return } // accept handler
+  if (geytting_settings) { return } // accept handler
   if (had_backgroundaccept) { return }
   if (localOptions.optBackground && localOptions.optAutoStart) {
     console.log('background && autostart. wake up!')

@@ -1,30 +1,14 @@
 /// <reference path="../../node_modules/@types/chrome/index.d.ts" />
 /// <reference path="../../node_modules/@types/chrome/chrome-app.d.ts" />
 /// <reference path="../../node_modules/@types/chrome/chrome-webview.d.ts" />
+import { WSCOptions } from './options';
 import { Destructor } from './destructor';
 import { HTTPRequest } from './request';
 import { UPNP } from './upnp';
 import { IOStream } from './stream';
 export declare class WebApplication implements Destructor {
     id: string;
-    opts: {
-        optStatic: any;
-        optRenderIndex: any;
-        optAllInterfaces: any;
-        optModRewriteEnable: boolean;
-        optModRewriteNegate: boolean;
-        optModRewriteRegexp: boolean;
-        optModRewriteTo: any;
-        optPreventSleep: any;
-        optStopIdleServer: any;
-        optDoPortMapping: any;
-        optBackground: any;
-        optTryOtherPorts: boolean;
-        optCORS: any;
-        optIPV6: any;
-        host: any;
-        auth: any;
-    };
+    opts: WSCOptions;
     handlers: any[];
     sockInfo: any;
     lasterr: any;
@@ -37,41 +21,24 @@ export declare class WebApplication implements Destructor {
     streams: any;
     upnp: UPNP;
     sockets: typeof chrome.sockets;
-    host: any;
-    port: any;
+    host: string;
+    port: number;
     _idle_timeout_id: any;
     on_status_change: any;
     interfaces: any[];
-    interface_retry_count: any;
+    interface_retry_count: number;
     urls: any[];
     extra_urls: any;
     acceptQueue: any;
     handlersMatch: [RegExp, any][];
-    constructor(opts: any);
+    constructor(opts: WSCOptions);
     onDestroy(): void;
     processAcceptQueue(): void;
     updateOption(k: any, v: any): void;
     get_info(): {
         interfaces: any[];
         urls: any[];
-        opts: {
-            optStatic: any;
-            optRenderIndex: any;
-            optAllInterfaces: any;
-            optModRewriteEnable: boolean;
-            optModRewriteNegate: boolean;
-            optModRewriteRegexp: boolean;
-            optModRewriteTo: any;
-            optPreventSleep: any;
-            optStopIdleServer: any;
-            optDoPortMapping: any;
-            optBackground: any;
-            optTryOtherPorts: boolean;
-            optCORS: any;
-            optIPV6: any;
-            host: any;
-            auth: any;
-        };
+        opts: WSCOptions;
         started: any;
         starting: any;
         stopped: any;
@@ -98,7 +65,7 @@ export declare class WebApplication implements Destructor {
     onPortmapResult(result: any): void;
     onReady(): void;
     init_urls(): any[];
-    computePortRetry(i: any): any;
+    computePortRetry(i: any): number;
     tryListenOnPort(state: any, callback: any): void;
     doTryListenOnPort(state: any, callback: any): void;
     onServerSocket(state: any, callback: any, sockInfo: any): void;
@@ -120,7 +87,7 @@ export declare abstract class BaseHandler {
     responseHeaders: {};
     responseData: any[];
     responseLength: any;
-    rewrite_to: any;
+    rewriteTo: string;
     isDirectoryListing: boolean;
     beforeFinish: any;
     abstract request: HTTPRequest;
@@ -132,12 +99,11 @@ export declare abstract class BaseHandler {
     set_status(code: any): void;
     writeHeaders(code?: any, callback?: any): void;
     writeChunk(data: any): void;
-    write(data: any, code: any, opt_finish: any): void;
+    write(data: any, code: any, opt_finish?: boolean): void;
     finish(): void;
 }
 export declare class FileSystem {
-    private entry;
-    isFile: boolean;
+    entry: any;
     constructor(entry: any);
     getByPath(path: string, callback: any, allowFolderCreation?: boolean): void;
 }

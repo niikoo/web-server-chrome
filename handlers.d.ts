@@ -25,6 +25,7 @@ export declare class DirectoryEntryHandler extends BaseHandler {
     bodyWritten: number;
     responseLength: number;
     isDirectoryListing: boolean;
+    rewriteTo: string;
     constructor(fs: FileSystem, request: HTTPRequest);
     onClose(): void;
     debug(): void;
@@ -38,7 +39,7 @@ export declare class DirectoryEntryHandler extends BaseHandler {
     onWriteBufferEmpty(): void;
     onReadChunk(evt: any): void;
     onEntry(entry: any): void;
-    renderFileContents(entry: any, file: any): void;
+    renderFileContents(entry: any, filePointer: any): void;
     entriesSortFunc(a: any, b: any): any;
     renderDirectoryListingJSON(results: any): void;
     renderDirectoryListingTemplate(results: any): void;

@@ -1,35 +1,20 @@
+import { WSCOptions } from './options';
 import { HTTPRequest } from './request';
 import { DirectoryEntryHandler, RequestHandler } from './handlers';
 import { WebApplication, BaseHandler, FileSystem } from './webapp';
 import { clone } from 'lodash';
-import { EntryCache } from "./entrycache";
+import { EntryCache } from './entrycache';
+export { FileSystem };
 
-declare var TextEncoder: any;
-declare var TextDecoder: any;
+declare let TextEncoder: any;
+declare let TextDecoder: any;
 
 export class WSC {
-  static DEBUG = true;
+  static DEBUG = false;
   static VERBOSE = false;
   static peerSockMap = {};
   static app = {
-    opts: {
-      optStatic: null,
-      optRenderIndex: null,
-      optAllInterfaces: null,
-      optModRewriteEnable: false,
-      optModRewriteNegate: false,
-      optModRewriteRegexp: false,
-      optModRewriteTo: null,
-      optPreventSleep: null,
-      optStopIdleServer: null,
-      optDoPortMapping: null,
-      optBackground: null,
-      optTryOtherPorts: false,
-      optCORS: null,
-      optIPV6: null,
-      host: null,
-      auth: null
-    }
+    opts: new WSCOptions()
   }
 
   static template_data;
@@ -38,21 +23,24 @@ export class WSC {
   static entryFileCache: EntryCache = new EntryCache();
   static WebApplication = WebApplication;
   static DirectoryEntryHandler = DirectoryEntryHandler;
-  static FileSystem: any;
+  static FileSystem = FileSystem;
 
   static prepareHandler(handler, ...params) {
     return () => new handler(...params);
   }
+  static prepareTypedHandler<T>(handler, ...params): () => T {
+    return () => new handler(...params) as T;
+  }
 
   static outpush(arg0: any): any {
-    throw new Error("Method not implemented.");
+    throw new Error('Method not implemented.');
   }
 
   static getchromeversion() {
     let version;
-    var match = navigator.userAgent.match(/Chrome\/([\d]+)/)
+    let match = navigator.userAgent.match(/Chrome\/([\d]+)/)
     if (match) {
-      version = parseInt(match[1]);
+      version = parseInt(match[1], 10);
     }
     return version;
   }
@@ -65,9 +53,9 @@ export class WSC {
     }
   }
   static strformat(s) {
-    var args = Array.prototype.slice.call(arguments, 1, arguments.length);
+    let args = Array.prototype.slice.call(arguments, 1, arguments.length);
     return s.replace(/{(\d+)}/g, function (match, number) {
-      return typeof args[number] != 'undefined'
+      return typeof args[number] !== 'undefined'
         ? args[number]
         : match
         ;
@@ -81,9 +69,9 @@ export class WSC {
     if (!d) {
       return name
     }
-    var out = [name]
-    for (var k in d) {
-      var v = d[k]
+    let out = [name]
+    for (let k in d) {
+      let v = d[k]
       if (!v) {
         out.push(k)
       } else {
@@ -96,59 +84,82 @@ export class WSC {
 
   // common stuff
 
-  static recursiveGetEntry(filesystem, path, callback, allowFolderCreation) {
-    var useCache = false
+  static recursiveGetEntry(filesystem: DirectoryEntry, path, callback, allowFolderCreation) {
+    console.log('Getting: ' + path);
+    let useCache = false;
     // XXX duplication with jstorrent
-    var cacheKey = filesystem.filesystem.name +
+    let cacheKey = filesystem.filesystem.name +
       filesystem.fullPath +
       '/' + path.join('/')
-    var inCache = WSC.entryCache.get(cacheKey)
+    let inCache = WSC.entryCache.get(cacheKey)
     if (useCache && inCache) {
       //console.log('cache hit');
       callback(inCache); return
     }
+    let state = { entry: <DirectoryEntry | FileEntry>filesystem, path: null };
+    path = path || [''];
 
-    var state = { e: filesystem, path: null }
+    let data = {
+      path,
+      callback,
+      useCache,
+      allowFolderCreation,
+      state,
+      cacheKey
+    };
 
-    let recurse = (e) => {
-      if (path.length == 0) {
-        if (e.name == 'TypeMismatchError') {
-          state.e.getDirectory(state.path, { create: false }, recurse, recurse)
-        } else if (e.isFile) {
-          if (useCache) this.entryCache.set(cacheKey, e)
-          callback(e)
-        } else if (e.isDirectory) {
-          //console.log(filesystem,path,cacheKey,state)
-          if (useCache) this.entryCache.set(cacheKey, e)
-          callback(e)
-        } else {
-          callback({ error: 'path not found' })
-        }
-      } else if (e.isDirectory) {
-        if (path.length > 1) {
-          // this is not calling error callback, simply timing out!!!
-          e.getDirectory(path.shift(), { create: !!allowFolderCreation }, recurse, recurse)
-        } else {
-          state.e = e;
-          state.path = clone(path);
-          e.getFile(path.shift(), { create: false }, recurse, recurse)
-        }
-      } else if (e.name == 'NotFoundError') {
-        callback({ error: e.name, message: e.message })
-      } else {
-        callback({ error: 'file exists' })
-      }
+
+    try {
+      this.recurse(filesystem, data);
+    } catch (ex) {
+      console.error('Recursion failed');
+      console.log('Recursion exception info', ex);
     }
-    recurse(filesystem)
+  }
+
+  static onRecusionError(error) {
+    console.log(error);
+    debugger;
+  }
+
+  static recurse(entry: DirectoryEntry | FileEntry, data: { path, callback, useCache, allowFolderCreation, state, cacheKey }) {
+    data.allowFolderCreation = false; // Force off
+    if (data.path.length === 0) {
+      if (entry.name === 'TypeMismatchError') {
+        (<DirectoryEntry>data.state.entry).getDirectory(data.state.path, { create: false }, (newEntry) => WSC.recurse(newEntry, data), WSC.onRecusionError);
+      } else if (entry.isFile) {
+        if (data.useCache) { this.entryCache.set(data.cacheKey, entry) };
+        data.callback(entry)
+      } else if (entry.isDirectory) {
+        //console.log(filesystem,path,cacheKey,state)
+        if (data.useCache) { this.entryCache.set(data.cacheKey, entry) };
+        data.callback(entry)
+      } else {
+        data.callback({ error: 'path not found' })
+      }
+    } else if (entry.isDirectory) {
+      if (data.path.length > 1) {
+        // this is not calling error callback, simply timing out!!!
+        (<DirectoryEntry>entry).getDirectory(data.path.shift(), { create: data.allowFolderCreation }, (newEntry) => WSC.recurse(newEntry, data), WSC.onRecusionError);
+      } else {
+        data.state.entry = entry;
+        data.state.path = clone(data.path).join('/');
+        (<DirectoryEntry>entry).getFile(data.path.shift(), { create: false }, (newEntry) => WSC.recurse(newEntry, data), WSC.onRecusionError);
+      }
+    } else if (entry.name === 'NotFoundError') {
+      data.callback({ error: entry.name, message: entry['message'] });
+    } else {
+      data.callback({ error: 'file exists' });
+    }
   }
 
   static parseHeaders(lines) {
-    var headers = {}
-    var line
+    let headers = {}
+    let line
     // TODO - multi line headers?
-    for (var i = 0; i < lines.length; i++) {
+    for (let i = 0; i < lines.length; i++) {
       line = lines[i]
-      var j = line.indexOf(':')
+      let j = line.indexOf(':')
       headers[line.slice(0, j).toLowerCase()] = line.slice(j + 1, line.length).trim()
     }
     return headers
@@ -156,40 +167,40 @@ export class WSC {
   static ui82str(arr, startOffset) {
     console.assert(arr)
     if (!startOffset) { startOffset = 0 }
-    var length = arr.length - startOffset // XXX a few random exceptions here
-    var str = ""
-    for (var i = 0; i < length; i++) {
+    let length = arr.length - startOffset // XXX a few random exceptions here
+    let str = ''
+    for (let i = 0; i < length; i++) {
       str += String.fromCharCode(arr[i + startOffset])
     }
     return str
   }
   static ui82arr(arr, startOffset) {
     if (!startOffset) { startOffset = 0 }
-    var length = arr.length - startOffset
-    var outarr = []
-    for (var i = 0; i < length; i++) {
+    let length = arr.length - startOffset
+    let outarr = []
+    for (let i = 0; i < length; i++) {
       outarr.push(arr[i + startOffset])
     }
     return outarr
   }
   static str2ab(s) {
-    var arr = []
-    for (var i = 0; i < s.length; i++) {
+    let arr = []
+    for (let i = 0; i < s.length; i++) {
       arr.push(s.charCodeAt(i))
     }
     return new Uint8Array(arr).buffer
   }
   static stringToUint8Array = function (string) {
-    var encoder = new TextEncoder(this.encoderBase)
+    let encoder = new TextEncoder(this.encoderBase)
     return encoder.encode(string, null)
   };
 
   static arrayBufferToString = function (buffer) {
-    var decoder = new TextDecoder();
+    let decoder = new TextDecoder();
     return decoder.decode(buffer, null)
   };
   /*
-      var logToScreen = function(log) {
+      let logToScreen = function(log) {
           logger.textContent += log + "\n";
       }
 
@@ -201,3 +212,11 @@ export class WSC {
 
 }
 
+export interface RecursionData {
+  path: string[];
+  state: { entry: DirectoryEntry | FileEntry, path: string };
+  useCache: boolean;
+  cacheKey: string;
+  callback: (entry: DirectoryEntry | FileEntry) => void;
+  allowFolderCreation: boolean;
+}

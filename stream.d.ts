@@ -2,7 +2,7 @@
 /// <reference path="../../node_modules/@types/chrome/chrome-app.d.ts" />
 /// <reference path="../../node_modules/@types/chrome/chrome-webview.d.ts" />
 import { Destructor } from './destructor';
-import { Buffer } from "./buffer";
+import { Buffer } from './buffer';
 export declare class IOStream implements Destructor {
     sockId: any;
     readonly streamID: string;
