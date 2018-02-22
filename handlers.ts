@@ -70,7 +70,7 @@ export class ProxyHandler extends BaseHandler {
       'Upgrade-Insecure-Requests': '1',
       'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_4) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/49.0.2623.110 Safari/537.36'
     }
-    for (let k in chromeheaders) {
+    for (let k of Object.keys(chromeheaders)) {
       xhr.setRequestHeader(k, chromeheaders[k])
     }
     xhr.open('GET', url, undefined);
@@ -79,7 +79,7 @@ export class ProxyHandler extends BaseHandler {
   }
 
   onfetched(evt) {
-    for (let header in evt.target.headers) {
+    for (let header of Object.keys(evt.target.headers)) {
       this.setHeader(header, evt.target.headers[header])
     }
     this.responseLength = evt.target.response.byteLength
@@ -197,7 +197,9 @@ export class DirectoryEntryHandler extends BaseHandler {
 
     }*/
 
-    console.log('Instance: ' + Math.round(Math.random() * 100));
+    if (WSC.DEBUG) {
+      console.log('Instance: ' + Math.round(Math.random() * 100));
+    }
 
     if (this.rewriteTo) {
       this.fs.getByPath(this.rewriteTo, (entry) => this.onEntry(entry), true)
