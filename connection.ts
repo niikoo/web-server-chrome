@@ -1,10 +1,10 @@
 import { isFunction } from 'lodash';
 import { IOStream } from './stream';
 import { WSC } from './common';
-import { HTTPRequest } from "./request";
+import { HTTPRequest } from './request';
 
-declare var TextEncoder: any;
-declare var TextDecoder: any;
+declare let TextEncoder: any;
+declare let TextDecoder: any;
 
 export class HTTPConnection {
   _DEBUG = WSC.DEBUG;
@@ -31,7 +31,7 @@ export class HTTPConnection {
   }
   write(data, callback = null) {
     let buf;
-    if (typeof data == 'string') {
+    if (typeof data === 'string') {
       // this is using TextEncoder with utf-8
       this.log('starting writing utf-8');
       buf = WSC.stringToUint8Array(data).buffer
@@ -55,15 +55,15 @@ export class HTTPConnection {
     this.log('[HEADERS]', data, 'onHeaders()');
     // TODO - http headers are Latin1, not ascii...
     let datastr = WSC.arrayBufferToString(data);
-    var lines = datastr.split('\r\n')
+    let lines = datastr.split('\r\n')
     this.log('[HEADERS] datastr: ', datastr, lines);
-    var firstline = lines[0]
-    var flparts = firstline.split(' ')
-    var method = flparts[0]
-    var uri = flparts[1]
-    var version = flparts[2]
+    let firstline = lines[0]
+    let flparts = firstline.split(' ')
+    let method = flparts[0]
+    let uri = flparts[1]
+    let version = flparts[2]
 
-    var headers = WSC.parseHeaders(lines.slice(1, lines.length - 2))
+    let headers = WSC.parseHeaders(lines.slice(1, lines.length - 2))
     this.curRequest = new HTTPRequest({
       headers: headers,
       method: method,
@@ -75,7 +75,7 @@ export class HTTPConnection {
       this.log(this.curRequest.uri)
     }
     if (headers['content-length']) {
-      var clen = parseInt(headers['content-length'])
+      let clen = parseInt(headers['content-length'])
       // TODO -- handle 100 continue..
       if (clen > 0) {
         console.log('request had content length', clen)
@@ -93,15 +93,15 @@ export class HTTPConnection {
     }
   }
   onRequestBody(body) {
-    var req = this.curRequest
-    var ct = req.headers['content-type']
-    var default_charset = 'utf-8'
+    let req = this.curRequest
+    let ct = req.headers['content-type']
+    let default_charset = 'utf-8'
     if (ct) {
       ct = ct.toLowerCase()
       if (ct.toLowerCase().startsWith('application/x-www-form-urlencoded')) {
-        var charset_i = ct.indexOf('charset=')
+        let charset_i = ct.indexOf('charset=')
         let charset;
-        if (charset_i != -1) {
+        if (charset_i !== -1) {
           charset = ct.slice(charset_i + 'charset='.length,
             ct.length)
           console.log('using charset', charset)
@@ -109,11 +109,11 @@ export class HTTPConnection {
           charset = default_charset
         }
 
-        var bodydata = new TextDecoder(charset).decode(body)
-        var bodyparams = {}
-        var items = bodydata.split('&')
-        for (var i = 0; i < items.length; i++) {
-          var kv = items[i].split('=')
+        let bodydata = new TextDecoder(charset).decode(body)
+        let bodyparams = {}
+        let items = bodydata.split('&')
+        for (let i = 0; i < items.length; i++) {
+          let kv = items[i].split('=')
           bodyparams[decodeURIComponent(kv[0])] = decodeURIComponent(kv[1])
         }
         req.bodyparams = bodyparams

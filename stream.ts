@@ -68,7 +68,8 @@ export class IOStream implements Destructor {
     return WSC.ui82str(new Uint8Array(this.readBuffer.deque[0], 0, maxlen), undefined)
   }
   removeCloseCallback(cb) {
-    debugger;
+    console.error('removeCloseCallback not implemented');
+    WSC.outpush(cb);
   }
   runCloseCallbacks() {
     for (let i = 0; i < this._close_callbacks.length; i++) {
@@ -108,7 +109,7 @@ export class IOStream implements Destructor {
     }
     this.log('tryWrite');
     this.writing = true;
-    let data = this.writeBuffer.consume_any_max(4096);
+    let data = this.writeBuffer.consume_any_max(4096 * WSC.app.opts.performance.bufferIncrease || 0);
     if (WSC.VERBOSE) {
       // this.debug(this.sockId, 'tcp.send', data.byteLength);
       // this.debug(this.sockId, 'tcp.send', WSC.ui82str(new Uint8Array(data), 0));

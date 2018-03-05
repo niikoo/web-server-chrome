@@ -93,7 +93,7 @@ export class DirectoryEntryHandler extends BaseHandler {
   debugInterval;
   entry = null;
   file = null;
-  readChunkSize = 4096 * 16;
+  readChunkSize = (4096 * 16);
   fileOffset = 0;
   fileEndOffset = 0;
   opts = { optUpload: true };
@@ -106,6 +106,9 @@ export class DirectoryEntryHandler extends BaseHandler {
     public request: HTTPRequest
   ) {
     super();
+    if (WSC.opts.performance.bufferIncrease) {
+      this.readChunkSize *= WSC.opts.performance.bufferIncrease;
+    }
     // this.debugInterval = setInterval(() => this.debug(), 1000);
     if (!isNil(request)) {
       this.request.connection.stream.onclose = () => this.onClose;
@@ -270,7 +273,6 @@ export class DirectoryEntryHandler extends BaseHandler {
     this.entry = entry;
 
     if (this.entry && this.entry.isDirectory && !this.request.origpath.endsWith('/')) {
-      debugger;
       let newloc = this.request.origpath + '/';
       this.setHeader('location', newloc); // XXX - encode latin-1 somehow?
       this.responseLength = 0;

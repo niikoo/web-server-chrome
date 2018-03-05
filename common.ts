@@ -2,7 +2,7 @@ import { WSCOptions } from './options';
 import { HTTPRequest } from './request';
 import { DirectoryEntryHandler, RequestHandler } from './handlers';
 import { WebApplication, BaseHandler, FileSystem } from './webapp';
-import { clone } from 'lodash';
+import { clone, isArray, isObject } from 'lodash';
 import { EntryCache } from './entrycache';
 export { FileSystem };
 
@@ -13,9 +13,12 @@ export class WSC {
   static DEBUG = false;
   static VERBOSE = false;
   static peerSockMap = {};
-  static app = {
-    opts: new WSCOptions()
+  static get app() {
+    return {
+      opts: this.opts
+    };
   }
+  static opts = new WSCOptions();
 
   static template_data;
 
@@ -33,7 +36,7 @@ export class WSC {
   }
 
   static outpush(arg0: any): any {
-    throw new Error('Method not implemented.');
+    console.error('Method not implemented; received:', arg0);
   }
 
   static getchromeversion() {
@@ -62,30 +65,32 @@ export class WSC {
     });
   }
   static parse_header(line) {
-    debugger;
+    console.warn('Function parse_header not implemented yet. Tried to parse: ', line);
   }
 
-  static encode_header(name, d) {
-    if (!d) {
-      return name
+  static encode_header(name, data) {
+    if (!data) {
+      return name;
     }
     let out = [name]
-    for (let k in d) {
-      let v = d[k]
-      if (!v) {
-        out.push(k)
+    for (let key of Object.keys(data)) {
+      let val = data[key];
+      if (!val) {
+        out.push(key);
       } else {
         // quote?
-        WSC.outpush(k + '=' + v)
+        WSC.outpush(key + '=' + val);
       }
     }
-    return out.join('; ')
+    return out.join('; ');
   }
 
   // common stuff
 
   static recursiveGetEntry(filesystem: DirectoryEntry, path, callback, allowFolderCreation) {
-    console.log('Getting: ' + path);
+    if (WSC.DEBUG) {
+      console.log('Getting: ' + path);
+    }
     let useCache = false;
     // XXX duplication with jstorrent
     let cacheKey = filesystem.filesystem.name +

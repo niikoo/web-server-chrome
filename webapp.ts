@@ -629,7 +629,7 @@ export class WebApplication implements Destructor {
     if (isNil(handled) || !handled) {
       console.error('unhandled request', request)
       // create a default handler...
-      let handler = new DefaultHandler(request);
+      handler = new DefaultHandler(request);
       handler.write('Unhandled request. Did you select a folder to serve?', 404, undefined)
       handler.finish()
     }
@@ -662,6 +662,7 @@ export abstract class BaseHandler {
   }
 
   setCORS() {
+    this.setHeader('access-control-allow-headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
     this.setHeader('access-control-allow-origin', '*');
     this.setHeader('access-control-allow-methods', 'GET, POST, PUT, DELETE, OPTIONS');
     this.setHeader('access-control-max-age', '120');

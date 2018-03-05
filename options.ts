@@ -25,5 +25,11 @@ export class WSCOptions {
   optUpload: boolean = false;
   optVerbose: boolean = false;
   port: number = 8887;
+  performance = {
+    /**
+     * @description Duplicator - multiply buffer by this
+     */
+    bufferIncrease: 128
+  };
   retainStr: any = undefined;
 }

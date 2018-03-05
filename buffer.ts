@@ -15,15 +15,15 @@ export class Buffer {
     this._size = 0
   }
   flatten() {
-    if (this.deque.length == 1) { return this.deque[0] }
+    if (this.deque.length === 1) { return this.deque[0] }
     // flattens the buffer deque to one element
-    var totalSz = 0
-    for (var i = 0; i < this.deque.length; i++) {
+    let totalSz = 0
+    for (let i = 0; i < this.deque.length; i++) {
       totalSz += this.deque[i].byteLength
     }
-    var arr = new Uint8Array(totalSz)
-    var idx = 0
-    for (var i = 0; i < this.deque.length; i++) {
+    let arr = new Uint8Array(totalSz)
+    let idx = 0
+    for (let i = 0; i < this.deque.length; i++) {
       arr.set(new Uint8Array(this.deque[i]), idx)
       idx += this.deque[i].byteLength
     }
@@ -50,10 +50,10 @@ export class Buffer {
       return null;
     }
 
-    var consumed = 0
+    let consumed = 0
 
-    var ret = new Uint8Array(sz)
-    var curbuf
+    let ret = new Uint8Array(sz)
+    let curbuf
     // consume from the left
 
     while (consumed < sz) {
@@ -67,16 +67,16 @@ export class Buffer {
         this.deque.shift()
       } else {
         // curbuf too big! this will be the last buffer
-        var sliceleft = new Uint8Array(curbuf, 0, sz - consumed)
+        let sliceleft = new Uint8Array(curbuf, 0, sz - consumed)
         //console.log('left slice',sliceleft)
 
         ret.set(sliceleft, consumed)
         // we spliced off data, so set curbuf in deque
 
-        var remainsz = curbuf.byteLength - (sz - consumed)
-        var sliceright = new Uint8Array(curbuf, sz - consumed, remainsz)
+        let remainsz = curbuf.byteLength - (sz - consumed)
+        let sliceright = new Uint8Array(curbuf, sz - consumed, remainsz)
         //console.log('right slice',sliceright)
-        var remain = new Uint8Array(remainsz)
+        let remain = new Uint8Array(remainsz)
         remain.set(sliceright, 0)
         //console.log('right slice (newbuf)',remain)
 
