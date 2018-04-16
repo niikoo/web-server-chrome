@@ -6,7 +6,7 @@ export class Buffer {
   right amount of data.
  */
   deque = []
-  constructor (
+  constructor(
     private opts = {}) {
   }
 
@@ -43,7 +43,7 @@ export class Buffer {
       return this.consume(maxsz)
     }
   }
-  consume(sz, putback = undefined): ArrayBuffer {
+  consume(sz, putback = undefined): ArrayBuffer | SharedArrayBuffer {
     // returns a single array buffer of size sz
     if (sz > this._size) {
       console.assert(false)
@@ -89,7 +89,7 @@ export class Buffer {
     } else {
       this._size -= sz
     }
-    return ret.buffer
+    return ret.buffer;
   }
   size() {
     return this._size

@@ -3,32 +3,12 @@ import { WSC } from './common';
 import { Buffer } from "./buffer";
 import { IOStream } from "./stream";
 
-declare var TextEncoder: any;
-declare var TextDecoder: any;
+declare let TextEncoder: any;
+declare let TextDecoder: any;
 
 export class ChromeSocketXMLHttpRequest {
   chunks: any;
   responseDataParsed: { code: any; status: any; proto: any; headers: {}; };
-  ui8IndexOf(arr, s, startIndex) {
-    // searches a ui8array for subarray s starting at startIndex
-    startIndex = startIndex || 0
-    var match = false
-    for (var i = startIndex; i < arr.length - s.length + 1; i++) {
-      if (arr[i] == s[0]) {
-        match = true
-        for (var j = 1; j < s.length; j++) {
-          if (arr[i + j] != s[j]) {
-            match = false
-            break
-          }
-        }
-        if (match) {
-          return i
-        }
-      }
-    }
-    return -1
-  }
 
   onload = null
   _finished = false
@@ -62,7 +42,28 @@ export class ChromeSocketXMLHttpRequest {
   secured = false
   uri;
   ontimeout;
-  constructor () {
+  constructor() {
+  }
+
+  ui8IndexOf(arr, s, startIndex) {
+    // searches a ui8array for subarray s starting at startIndex
+    startIndex = startIndex || 0
+    let match = false
+    for (let i = startIndex; i < arr.length - s.length + 1; i++) {
+      if (arr[i] == s[0]) {
+        match = true
+        for (let j = 1; j < s.length; j++) {
+          if (arr[i + j] != s[j]) {
+            match = false
+            break
+          }
+        }
+        if (match) {
+          return i
+        }
+      }
+    }
+    return -1
   }
 
   open(method, url, async) {
@@ -72,7 +73,7 @@ export class ChromeSocketXMLHttpRequest {
       async: true
     }
     this.uri = WSC.parseUri(this.opts.url)
-    console.assert(this.uri.protocol == 'http:') // https not supported for chrome.socket yet
+    console.assert(this.uri.protocol === 'http:') // https not supported for chrome.socket yet
   }
   setRequestHeader(key, val) {
     this.extraHeaders[key] = val
@@ -89,8 +90,8 @@ export class ChromeSocketXMLHttpRequest {
     }
   }
   createRequestHeaders() {
-    var lines = []
-    var headers = {//'Connection': 'close',
+    let lines = []
+    let headers = {//'Connection': 'close',
       //'Accept-Encoding': 'identity', // servers will send us chunked encoding even if we dont want it, bastards
       //                           'Accept-Encoding': 'identity;q=1.0 *;q=0', // servers will send us chunked encoding even if we dont want it, bastards
       //                       'User-Agent': 'uTorrent/330B(30235)(server)(30235)', // setRequestHeader /extra header is doing this
@@ -111,7 +112,7 @@ export class ChromeSocketXMLHttpRequest {
     }
     lines.push(this.opts.method + ' ' + this.uri.pathname + this.uri.search + ' HTTP/1.1')
     console.log('making request', lines[0], headers)
-    for (var key in headers) {
+    for (let key in headers) {
       lines.push(key + ': ' + headers[key])
     }
     return lines.join('\r\n') + '\r\n\r\n'
@@ -126,7 +127,7 @@ export class ChromeSocketXMLHttpRequest {
     console.log('error:', data)
     this.haderror = true
     if (this.onerror) {
-      console.assert(typeof data == "object")
+      console.assert(typeof data == 'object')
       data.target = { error: true }
       this.onerror(data)
     }
@@ -147,8 +148,8 @@ export class ChromeSocketXMLHttpRequest {
     this.stream.addCloseCallback(this.onStreamClose.bind(this))
     this.sockInfo = sockInfo
     this.connecting = true
-    var host = this.getHost()
-    var port = this.getPort()
+    let host = this.getHost()
+    let port = this.getPort()
     console.log('connecting to', host, port)
     chrome.sockets.tcp.setPaused(sockInfo.socketId, true, () => {
       chrome.sockets.tcp.connect(sockInfo.socketId, host, port, () => this.onConnect)
@@ -156,7 +157,7 @@ export class ChromeSocketXMLHttpRequest {
   }
   onConnect(result) {
     console.log('connected to', this.getHost())
-    var lasterr = chrome.runtime.lastError
+    let lasterr = chrome.runtime.lastError
     if (this.closed) { return }
     this.connecting = false
     if (this.timedOut) {
@@ -175,7 +176,7 @@ export class ChromeSocketXMLHttpRequest {
         chrome.sockets.tcp['secure'](this.sockInfo.socketId, this.onConnect.bind(this))
         return
       }
-      var headers = this.createRequestHeaders()
+      let headers = this.createRequestHeaders()
       //console.log('request to',this.getHost(),headers)
       this.stream.writeBuffer.add(new TextEncoder('utf-8').encode(headers, undefined).buffer)
       if (this.requestBody) {
@@ -199,11 +200,11 @@ export class ChromeSocketXMLHttpRequest {
   }
   onHeaders(data) {
     // not sure what encoding for headers is exactly, latin1 or something? whatever.
-    var headers = WSC.ui82str(new Uint8Array(data), undefined)
+    let headers = WSC.ui82str(new Uint8Array(data), undefined)
     //console.log('found http tracker response headers', headers)
     this.headersReceived = true
     this.responseHeaders = headers
-    var response = parseHeaders(this.responseHeaders)
+    let response = parseHeaders(this.responseHeaders)
     this.responseDataParsed = response
     this.responseHeadersParsed = response.headers
     //console.log(this.getHost(),'parsed http response headers',response)
@@ -214,11 +215,11 @@ export class ChromeSocketXMLHttpRequest {
       response.headers['transfer-encoding'] == 'chunked') {
       this.chunks = new Buffer();
       //console.log('looking for an \\r\\n')
-      this.stream.readUntil("\r\n", this.getNewChunk.bind(this))
+      this.stream.readUntil('\r\n', this.getNewChunk.bind(this))
       //this.error('chunked encoding')
     } else {
       if (!response.headers['content-length']) {
-        this.error("no content length in response")
+        this.error('no content length in response')
       } else {
         //console.log('read bytes',this.responseLength)
         this.stream.readBytes(this.responseLength, this.onBody.bind(this))
@@ -227,11 +228,11 @@ export class ChromeSocketXMLHttpRequest {
   }
   onChunkDone(data) {
     this.chunks.add(data)
-    this.stream.readUntil("\r\n", this.getNewChunk.bind(this))
+    this.stream.readUntil('\r\n', this.getNewChunk.bind(this))
   }
   getNewChunk(data) {
-    var s = WSC.ui82str(new Uint8Array(data.slice(0, data.byteLength - 2)), undefined)
-    var len = parseInt(s, 16)
+    let s = WSC.ui82str(new Uint8Array(data.slice(0, data.byteLength - 2)), undefined)
+    let len = parseInt(s, 16)
     if (isNaN(len)) {
       this.error('invalid chunked encoding response')
       return
@@ -239,7 +240,7 @@ export class ChromeSocketXMLHttpRequest {
     //console.log('looking for new chunk of len',len)
     if (len == 0) {
       //console.log('got all chunks',this.chunks)
-      var body = this.chunks.flatten()
+      let body = this.chunks.flatten()
       this.onBody(body)
     } else {
       this.stream.readBytes(len + 2, this.onChunkDone.bind(this))
@@ -247,7 +248,7 @@ export class ChromeSocketXMLHttpRequest {
   }
   onBody(body) {
     this.responseBody = body
-    var evt = {
+    let evt = {
       target: {
         headers: this.responseDataParsed.headers,
         code: this.responseDataParsed.code, /* code is wrong, should be status */
@@ -259,7 +260,7 @@ export class ChromeSocketXMLHttpRequest {
       }
     }
     if (this.responseType && this.responseType.toLowerCase() == 'xml') {
-      evt.target.responseXML = (new DOMParser).parseFromString(new TextDecoder('utf-8').decode(body), "text/xml")
+      evt.target.responseXML = (new DOMParser).parseFromString(new TextDecoder('utf-8').decode(body), 'text/xml')
     }
     this.onload(evt)
     this._finished = true
@@ -269,18 +270,18 @@ export class ChromeSocketXMLHttpRequest {
 }
 
 function parseHeaders(s) {
-  var lines = s.split('\r\n')
-  var firstLine = lines[0].split(/ +/)
-  var proto = firstLine[0]
-  var code = firstLine[1]
-  var status = firstLine.slice(2, firstLine.length).join(' ')
-  var headers = {}
+  let lines = s.split('\r\n')
+  let firstLine = lines[0].split(/ +/)
+  let proto = firstLine[0]
+  let code = firstLine[1]
+  let status = firstLine.slice(2, firstLine.length).join(' ')
+  let headers = {}
 
-  for (var i = 1; i < lines.length; i++) {
-    var line = lines[i]
+  for (let i = 1; i < lines.length; i++) {
+    let line = lines[i]
     if (line) {
-      var j = line.indexOf(':')
-      var key = line.slice(0, j).toLowerCase()
+      let j = line.indexOf(':')
+      let key = line.slice(0, j).toLowerCase()
       headers[key] = line.slice(j + 1, line.length).trim()
     }
   }
@@ -294,7 +295,7 @@ function parseHeaders(s) {
 
 /*window['testxhr'] = function () {
   console.log('creating XHR')
-  var xhr = new ChromeSocketXMLHttpRequest(new WSC())
+  let xhr = new ChromeSocketXMLHttpRequest(new WSC())
   xhr.open("GET", "https://www.google.com")
   xhr.timeout = 8000
   xhr.onload = xhr.onerror = xhr.ontimeout = function (evt) {

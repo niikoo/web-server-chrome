@@ -122,16 +122,23 @@ export class WSC {
     }
   }
 
-  static onRecusionError(error) {
-    console.log(error);
-    debugger;
+  static onRecusionError(error, data) {
+    console.log('onRecursionError', error, 'data', data);
+    data.callback(null);
+    /*try {
+      chrome.runtime.restart();
+    } catch (ex) {
+      if (chrome.runtime.lastError) {
+        chrome.runtime.reload();
+      }
+    }*/
   }
 
   static recurse(entry: DirectoryEntry | FileEntry, data: { path, callback, useCache, allowFolderCreation, state, cacheKey }) {
     data.allowFolderCreation = false; // Force off
     if (data.path.length === 0) {
       if (entry.name === 'TypeMismatchError') {
-        (<DirectoryEntry>data.state.entry).getDirectory(data.state.path, { create: false }, (newEntry) => WSC.recurse(newEntry, data), WSC.onRecusionError);
+        (<DirectoryEntry>data.state.entry).getDirectory(data.state.path, { create: false }, (newEntry) => WSC.recurse(newEntry, data), (errorMsg) => WSC.onRecusionError({ msg: errorMsg, pathState: data.state.path, type: 'dir', path: data.path }, data));
       } else if (entry.isFile) {
         if (data.useCache) { this.entryCache.set(data.cacheKey, entry) };
         data.callback(entry)
@@ -145,11 +152,11 @@ export class WSC {
     } else if (entry.isDirectory) {
       if (data.path.length > 1) {
         // this is not calling error callback, simply timing out!!!
-        (<DirectoryEntry>entry).getDirectory(data.path.shift(), { create: data.allowFolderCreation }, (newEntry) => WSC.recurse(newEntry, data), WSC.onRecusionError);
+        (<DirectoryEntry>entry).getDirectory(data.path.shift(), { create: data.allowFolderCreation }, (newEntry) => WSC.recurse(newEntry, data), (errorMsg) => WSC.onRecusionError({ msg: errorMsg, pathState: data.state.path, type: 'dir', path: data.path }, data));
       } else {
         data.state.entry = entry;
         data.state.path = clone(data.path).join('/');
-        (<DirectoryEntry>entry).getFile(data.path.shift(), { create: false }, (newEntry) => WSC.recurse(newEntry, data), WSC.onRecusionError);
+        (<DirectoryEntry>entry).getFile(data.path.shift(), { create: false }, (newEntry) => WSC.recurse(newEntry, data), (errorMsg) => WSC.onRecusionError({ msg: errorMsg, pathState: data.state.path, type: 'file', path: data.path }, data));
       }
     } else if (entry.name === 'NotFoundError') {
       data.callback({ error: entry.name, message: entry['message'] });

@@ -14,7 +14,7 @@ export class HTTPRequest {
   };
   path;
   origpath;
-  constructor (opts) {
+  constructor(opts) {
     this.method = opts.method
     this.uri = opts.uri || '';
     this.version = opts.version
@@ -22,15 +22,15 @@ export class HTTPRequest {
     this.headers = opts.headers
     this.body = null
     this.bodyparams = null
-    var idx = this.uri.indexOf('?');
-    if (idx != -1) {
+    let idx = this.uri.indexOf('?');
+    if (idx !== -1) {
       this.path = decodeURIComponent(this.uri.slice(0, idx))
-      var s = this.uri.slice(idx + 1)
-      var parts = s.split('&')
+      let s = this.uri.slice(idx + 1)
+      let parts = s.split('&')
 
-      for (var i = 0; i < parts.length; i++) {
-        var p = parts[i]
-        var idx2 = p.indexOf('=')
+      for (let i = 0; i < parts.length; i++) {
+        let p = parts[i]
+        let idx2 = p.indexOf('=')
         this.arguments[decodeURIComponent(p.slice(0, idx2))] = decodeURIComponent(p.slice(idx2 + 1, s.length))
       }
     } else {

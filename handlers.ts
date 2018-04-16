@@ -38,7 +38,7 @@ export function getEntryFile(entry, callback) {
 
 export class ProxyHandler extends BaseHandler {
 
-  constructor (
+  constructor(
     public validator,
     public request: HTTPRequest) {
     super();
@@ -101,7 +101,7 @@ export class DirectoryEntryHandler extends BaseHandler {
   responseLength = 0;
   isDirectoryListing = false;
   rewriteTo: string = undefined;
-  constructor (
+  constructor(
     public fs: FileSystem,
     public request: HTTPRequest
   ) {
@@ -127,11 +127,15 @@ export class DirectoryEntryHandler extends BaseHandler {
   setOpts(opts) {
     this.opts = opts;
   }
+  notFound() {
+    this.write('File not found', 404, undefined);
+    this.finish();
+  }
   put() {
     if (!this.opts.optUpload) {
-      this.responseLength = 0
-      this.writeHeaders(400)
-      this.finish()
+      this.responseLength = 0;
+      this.writeHeaders(400);
+      this.finish();
       return;
     }
 
@@ -270,6 +274,10 @@ export class DirectoryEntryHandler extends BaseHandler {
     }
   }
   onEntry(entry) {
+    if (isNil(entry)) {
+      this.notFound();
+      return;
+    }
     this.entry = entry;
 
     if (this.entry && this.entry.isDirectory && !this.request.origpath.endsWith('/')) {
@@ -364,8 +372,8 @@ export class DirectoryEntryHandler extends BaseHandler {
   renderFileContents(entry, filePointer) {
     getEntryFile(entry, (file) => {
       if (file instanceof DOMException) {
-        this.write('File not found', 404, undefined)
-        this.finish()
+        this.write('File not found', 404, undefined);
+        this.finish();
         return
       }
       this.file = file;
@@ -513,7 +521,7 @@ export class DirectoryEntryHandler extends BaseHandler {
 
 
 export class DefaultHandler extends BaseHandler {
-  constructor (
+  constructor(
     public request: HTTPRequest
   ) {
     super();
