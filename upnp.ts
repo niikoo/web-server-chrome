@@ -11,8 +11,8 @@ import { ChromeSocketXMLHttpRequest } from './chromesocketxhr';
 import { Destructor } from './destructor';
 import { WSC } from './common';
 
-declare var TextEncoder: any;
-declare var TextDecoder: any;
+declare let TextEncoder: any;
+declare let TextDecoder: any;
 
 export class UPNP implements Destructor {
   port = 8888;
@@ -29,7 +29,7 @@ export class UPNP implements Destructor {
   interfaces = null
   mapping = null
   searching = false
-  constructor (
+  constructor(
     opts) {
     this.port = opts.port
     this.name = opts.name || 'web-server-chrome upnp.js'
@@ -45,9 +45,9 @@ export class UPNP implements Destructor {
     this.searching = false
   }
   flatParseNode(node) {
-    var d = {}
-    for (var i = 0; i < node.children.length; i++) {
-      var c = node.children[i]
+    let d = {}
+    for (let i = 0; i < node.children.length; i++) {
+      let c = node.children[i]
       if (c.children.length == 0) {
         d[c.tagName] = c.innerHTML
       }
@@ -61,16 +61,16 @@ export class UPNP implements Destructor {
     this.ssdp.cleanup();
   }
   getInternalAddress() {
-    var gatewayhost = this.validGateway.device.url.hostname
-    var gateparts = gatewayhost.split('.')
-    var match = false
+    let gatewayhost = this.validGateway.device.url.hostname
+    let gateparts = gatewayhost.split('.')
+    let match = false
 
-    for (var i = gateparts.length - 1; i--; i < 1) {
-      var pre = gateparts.slice(0, i).join('.')
-      for (var j = 0; j < this.interfaces.length; j++) {
+    for (let i = gateparts.length - 1; i--; i < 1) {
+      let pre = gateparts.slice(0, i).join('.')
+      for (let j = 0; j < this.interfaces.length; j++) {
         if (this.interfaces[j].prefixLength == 24) {
-          var iparts = this.interfaces[j].address.split('.')
-          var ipre = iparts.slice(0, i).join('.')
+          let iparts = this.interfaces[j].address.split('.')
+          let ipre = iparts.slice(0, i).join('.')
           if (ipre == pre) {
             match = this.interfaces[j].address
             console.log("UPNP", "selected internal address", match)
@@ -104,9 +104,9 @@ export class UPNP implements Destructor {
           return this.allDone(false);
         }
         // check if already exists nice mapping we can use.
-        var internal = this.getInternalAddress();
+        let internal = this.getInternalAddress();
         console.log('UPNP', 'got current mappings', mappings, 'internal address', internal);
-        for (var i = 0; i < mappings.length; i++) {
+        for (let i = 0; i < mappings.length; i++) {
           if (mappings[i].NewInternalClient == internal &&
             mappings[i].NewInternalPort == this.port &&
             mappings[i].NewProtocol == "TCP") {
@@ -133,17 +133,17 @@ export class UPNP implements Destructor {
   }
   onDevice(info) {
     console.log('UPNP', 'found an internet gateway device', info)
-    var device = new GatewayDevice(info)
+    let device = new GatewayDevice(info)
     device.getDescription(function () {
       this.devices.push(device)
     }.bind(this))
   }
   getWANServiceInfo() {
-    var infos = []
-    for (var i = 0; i < this.devices.length; i++) {
-      var services = this.devices[i].getService(this.desiredServices)
+    let infos = []
+    for (let i = 0; i < this.devices.length; i++) {
+      let services = this.devices[i].getService(this.desiredServices)
       if (services.length > 0) {
-        for (var j = 0; j < services.length; j++) {
+        for (let j = 0; j < services.length; j++) {
           infos.push({
             service: services[j],
             device: this.devices[i]
@@ -166,7 +166,7 @@ export class UPNP implements Destructor {
     } else {
       let onresult = (evt) => {
         if (evt.target.code == 200) {
-          var resp = evt.target.responseXML.documentElement.querySelector(enabled ? 'AddPortMappingResponse' : 'DeletePortMappingResponse')
+          let resp = evt.target.responseXML.documentElement.querySelector(enabled ? 'AddPortMappingResponse' : 'DeletePortMappingResponse')
           if (resp) {
             callback(this.flatParseNode(resp))
           } else {
@@ -177,9 +177,10 @@ export class UPNP implements Destructor {
           callback({ error: evt.target.code, evt: evt })
         }
       }
-      var externalPort = port
+      let externalPort = port
+      let args = [];
       if (enabled) {
-        var args = [
+        args = [
           ['NewEnabled', enabled],
           ['NewExternalPort', externalPort],
           ['NewInternalClient', this.getInternalAddress()],
@@ -187,16 +188,16 @@ export class UPNP implements Destructor {
           ['NewLeaseDuration', 0],
           ['NewPortMappingDescription', this.name],
           ['NewProtocol', prot],
-          ['NewRemoteHost', ""]
+          ['NewRemoteHost', '']
         ]
       } else {
-        var args = [
+        args = [
           //						['NewEnabled',enabled],
           ['NewExternalPort', externalPort],
           //						['NewInternalClient',this.getInternalAddress()],
           //						['NewInternalPort',port],
           ['NewProtocol', prot],
-          ['NewRemoteHost', ""]
+          ['NewRemoteHost', '']
         ]
       }
       this.validGateway.device.runService(this.validGateway.service,
@@ -208,52 +209,52 @@ export class UPNP implements Destructor {
     if (!this.validGateway) {
       callback()
     } else {
-      var info = this.validGateway
-      var idx = 0
-      var allmappings = []
+      let info = this.validGateway
+      let idx = 0
+      let allmappings = []
 
       let oneResult = (evt) => {
-        if (evt.target.code == 200) {
-          var resp = evt.target.responseXML.querySelector("GetGenericPortMappingEntryResponse")
-          var mapping = this.flatParseNode(resp)
-          allmappings.push(mapping)
-          getOne()
+        if (evt.target.code === 200) {
+          let resp = evt.target.responseXML.querySelector('GetGenericPortMappingEntryResponse');
+          let mapping = this.flatParseNode(resp);
+          allmappings.push(mapping);
+          getOne();
         } else {
-          callback(allmappings)
+          callback(allmappings);
         }
       }
 
       let getOne = () => {
-        info.device.runService(info.service, 'GetGenericPortMappingEntry', [['NewPortMappingIndex', idx++]], oneResult)
+        info.device.runService(info.service, 'GetGenericPortMappingEntry', [['NewPortMappingIndex', idx++]], oneResult);
       }
-      getOne()
+      getOne();
     }
   }
   getIP(callback) {
-    var infos = this.getWANServiceInfo()
-    var foundIP = null
-    var returned = 0
+    let infos = this.getWANServiceInfo();
+    let foundIP = null;
+    let returned = 0;
 
     function oneResult(info, evt) {
-      var doc = evt.target.responseXML // doc undefined sometimes
-      var ipelt = doc.documentElement.querySelector('NewExternalIPAddress')
-      var ip = ipelt ? ipelt.innerHTML : null
+      let doc = evt.target.responseXML; // doc undefined sometimes
+      let ipelt = doc.documentElement.querySelector('NewExternalIPAddress');
+      let ip = ipelt ? ipelt.innerHTML : null;
 
-      returned++
-      info.device.externalIP = ip
+      returned++;
+      info.device.externalIP = ip;
       if (ip) {
-        foundIP = ip
-        this.validGateway = info
+        foundIP = ip;
+        this.validGateway = info;
       }
 
-      if (returned == infos.length) {
-        callback(foundIP)
+      if (returned === infos.length) {
+        callback(foundIP);
       }
     }
 
     if (infos && infos.length > 0) {
-      for (var i = 0; i < infos.length; i++) {
-        var info = infos[i]
+      for (let i = 0; i < infos.length; i++) {
+        let info = infos[i]
         info.device.runService(info.service, 'GetExternalIPAddress', [], oneResult.bind(this, info))
       }
     } else {
@@ -268,7 +269,7 @@ export class GatewayDevice {
   devices = [];
   attributes = null;
   externalIP = null;
-  constructor (
+  constructor(
     public info) {
     this.description_url = info.headers.location
     this.url = new URL(this.description_url)
@@ -278,9 +279,9 @@ export class GatewayDevice {
     this.externalIP = null
   }
   runService(service, command, args, callback) {
-    var xhr = new ChromeSocketXMLHttpRequest();
-    var url = this.url.origin + service.controlURL
-    var body = '<?xml version="1.0"?>' +
+    let xhr = new ChromeSocketXMLHttpRequest();
+    let url = this.url.origin + service.controlURL
+    let body = '<?xml version="1.0"?>' +
       '<s:Envelope ' +
       'xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" ' +
       's:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">' +
@@ -296,13 +297,13 @@ export class GatewayDevice {
       '</s:Body>' +
       '</s:Envelope>';
     //console.log('req body',body)
-    var payload = new TextEncoder('utf-8').encode(body, undefined).buffer
-    var headers = {
+    let payload = new TextEncoder('utf-8').encode(body, undefined).buffer
+    let headers = {
       'content-type': 'text/xml; charset="utf-8"',
       'connection': 'close',
       'SOAPAction': JSON.stringify(service.serviceType) + '#' + command
     }
-    for (var k in headers) {
+    for (let k in headers) {
       xhr.setRequestHeader(k, headers[k])
     }
     xhr.open("POST", url, true)
@@ -312,22 +313,22 @@ export class GatewayDevice {
     xhr.onload = xhr.onerror = xhr.ontimeout = callback
   }
   getDescription(callback) {
-    var xhr = new ChromeSocketXMLHttpRequest();
+    let xhr = new ChromeSocketXMLHttpRequest();
     console.log('UPNP', 'query', this.description_url)
     xhr.open("GET", this.description_url, true)
     xhr.setRequestHeader('connection', 'close')
     xhr.responseType = 'xml'
     function onload(evt) {
       if (evt.target.code == 200) {
-        var doc = evt.target.responseXML
+        let doc = evt.target.responseXML
 
-        var devices = doc.documentElement.querySelectorAll('device')
-        for (var i = 0; i < devices.length; i++) {
+        let devices = doc.documentElement.querySelectorAll('device')
+        for (let i = 0; i < devices.length; i++) {
           this.devices.push(this.flatParseNode(devices[i]))
         }
 
-        var services = doc.documentElement.querySelectorAll('service')
-        for (var i = 0; i < services.length; i++) {
+        let services = doc.documentElement.querySelectorAll('service')
+        for (let i = 0; i < services.length; i++) {
           this.services.push(this.flatParseNode(services[i]))
         }
 
@@ -339,7 +340,7 @@ export class GatewayDevice {
     xhr.send(undefined)
   }
   getService(desired) {
-    var matches = this.services.filter(function (service) {
+    let matches = this.services.filter(function (service) {
       return desired.indexOf(service.serviceType) != -1
     })
     return matches
@@ -359,7 +360,7 @@ export class SSDP {
   lastError = null
   searching = false
   _event_listeners = {}
-  constructor (private upnp: UPNP, opts) {
+  constructor(private upnp: UPNP, opts) {
     this.port = opts.port
     this.wantUDP = opts.udp === undefined ? true : opts.udp
     this.searchtime = opts.searchtime
@@ -383,17 +384,17 @@ export class SSDP {
     this._event_listeners[name].push(callback)
   }
   trigger(name, data) {
-    var cbs = this._event_listeners[name]
+    let cbs = this._event_listeners[name]
     if (cbs) {
       cbs.forEach(function (cb) { cb(data) })
     }
   }
   onReceive(result) {
-    var state = this.sockMap[result.socketId]
-    var resp = new TextDecoder('utf-8', undefined).decode(result.data, undefined)
+    let state = this.sockMap[result.socketId]
+    let resp = new TextDecoder('utf-8', undefined).decode(result.data, undefined)
     if (!(resp.startsWith("HTTP") || resp.startsWith("NOTIFY"))) { return }
-    var lines = resp.split('\r\n')
-    var headers = {}
+    let lines = resp.split('\r\n')
+    let headers = {}
     // Parse headers from lines to hashmap
     lines.forEach((line) => {
       line.replace(/^([^:]*)\s*:\s*(.*)$/, (_l, key, value): string => {
@@ -403,7 +404,7 @@ export class SSDP {
     })
     if (headers['st'] == this.searchdevice) {
       //console.log('SSDP response',headers,result)
-      var device = {
+      let device = {
         remoteAddress: result.remoteAddress,
         remotePort: result.remotePort,
         socketId: 977,
@@ -421,7 +422,7 @@ export class SSDP {
     if (this.upnp.allDone) this.upnp.allDone(false)
   }
   cleanup() {
-    for (var socketId in this.sockMap) {
+    for (let socketId in this.sockMap) {
       chrome.sockets.udp.close(parseInt(socketId))
     }
     this.sockMap = {}
@@ -429,7 +430,7 @@ export class SSDP {
     chrome.sockets.udp.onReceiveError.removeListener(this._onReceive)
   }
   stopsearch() {
-    console.log('UPNP', "stopping ssdp search")
+    console.log('UPNP', 'stopping ssdp search')
     // stop searching, kill all sockets
     this.searching = false
     this.cleanup()
@@ -459,7 +460,7 @@ export class SSDP {
     chrome.sockets.udp.getInfo(state.sockInfo.socketId, this.onInfo.bind(this, state))
   }
   onInfo(state, info) {
-    var lasterr = chrome.runtime.lastError
+    let lasterr = chrome.runtime.lastError
     if (lasterr) {
       // socket was deleted in the meantime?
       this.error(lasterr)
@@ -470,7 +471,7 @@ export class SSDP {
     chrome.sockets.udp.joinGroup(state.sockInfo.socketId, this.multicast, this.onjoined.bind(this, state))
   }
   onjoined(state, result) {
-    var lasterr = chrome.runtime.lastError
+    let lasterr = chrome.runtime.lastError
     if (lasterr) {
       this.error(lasterr)
       return
@@ -479,7 +480,7 @@ export class SSDP {
       this.error({ error: 'join multicast', code: result })
       return
     }
-    var req = 'M-SEARCH * HTTP/1.1\r\n' +
+    let req = 'M-SEARCH * HTTP/1.1\r\n' +
       'HOST: ' + this.multicast + ':' + this.ssdpPort + '\r\n' +
       'MAN: "ssdp:discover"\r\n' +
       'MX: 1\r\n' +
