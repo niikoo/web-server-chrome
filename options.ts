@@ -16,6 +16,12 @@ export class WSCOptions {
   optModRewriteNegate: boolean = true;
   optModRewriteRegexp: string | RegExp = /.*\\.[\\d\\w]+$/;
   optModRewriteTo: string = '/index.html';
+  /**
+   * @description Will redirect 404 not found directory to optRewriteOnDirectoryNotFoundTo
+   * @see optRewriteOnDirectoryNotFoundTo
+   */
+  optRewriteOnDirectoryNotFound: boolean = true;
+  optRewriteOnDirectoryNotFoundTo: string[] = ['index.html'];
   optPreventSleep: boolean = false;
   optRenderIndex: boolean = true;
   optRetryInterfaces: boolean = true;

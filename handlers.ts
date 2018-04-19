@@ -238,8 +238,8 @@ export class DirectoryEntryHandler extends BaseHandler {
   }
   onWriteBufferEmpty() {
     if (!this.file) {
-      console.error('!this.file')
-      debugger;
+      console.error('!this.file');
+      // debugger;
       return
     }
     console.assert(this.bodyWritten <= this.responseLength)
@@ -270,7 +270,7 @@ export class DirectoryEntryHandler extends BaseHandler {
       this.request.connection.write(evt.target.result)
     } else {
       console.error('onreadchunk error', evt.target.error)
-      this.request.connection.close()
+      this.request.connection.close();
     }
   }
   onEntry(entry) {
@@ -286,28 +286,27 @@ export class DirectoryEntryHandler extends BaseHandler {
       this.responseLength = 0;
       console.log('redirect ->', newloc);
       this.writeHeaders(301);
-
       this.finish();
       return
     }
 
     if (this.request.connection.stream.closed) {
-      console.warn(this.request.connection.stream.sockId, 'request closed while processing request')
+      console.warn(this.request.connection.stream.sockId, 'request closed while processing request');
       return
     }
     if (!entry) {
       if (this.request.method === 'HEAD') {
-        this.responseLength = 0
-        this.writeHeaders(404)
-        this.finish()
+        this.responseLength = 0;
+        this.writeHeaders(404);
+        this.finish();
       } else {
-        this.write('no entry', 404, undefined)
+        this.write('no entry', 404, undefined);
       }
     } else if (entry.error) {
       if (this.request.method === 'HEAD') {
-        this.responseLength = 0
-        this.writeHeaders(404)
-        this.finish()
+        this.responseLength = 0;
+        this.writeHeaders(404);
+        this.finish();
       } else {
         this.write('entry not found: ' + (this.rewriteTo || this.request.path), 404, undefined)
       }

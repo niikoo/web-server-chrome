@@ -19,10 +19,10 @@ declare let TextEncoder: any;
 export class WebApplication implements Destructor {
   id: string;
   get opts(): WSCOptions {
-    return WSC.app.opts;
+    return WSC.opts;
   }
   set opts(opts: WSCOptions) {
-    WSC.app.opts = opts;
+    WSC.opts = opts;
   }
   handlers = [];
   sockInfo;
@@ -47,7 +47,7 @@ export class WebApplication implements Destructor {
   acceptQueue = undefined;
   handlersMatch: [RegExp, any][] = [];
 
-  constructor (opts: WSCOptions) {
+  constructor(opts: WSCOptions = new WSCOptions()) {
     // need to support creating multiple WebApplication...
     if (WSC.DEBUG) {
       console.log('initialize webapp with opts', opts)
@@ -60,7 +60,8 @@ export class WebApplication implements Destructor {
       WSC.VERBOSE = true;
     }
     WSC.FileSystem = FileSystem;
-    this.opts = opts || new WSCOptions();
+    console.log(opts);
+    this.opts = opts;
     this.id = Math.random().toString();
     this.handlers = opts.handlers || [];
     this.sockInfo = null;
@@ -259,7 +260,7 @@ export class WebApplication implements Destructor {
     this.started = false
     this.stopped = true
     chrome.sockets.tcpServer.disconnect(this.sockInfo.socketId, this.onDisconnect.bind(this, reason))
-    for (let key in this.streams) {
+    for (let key of Object.keys(this.streams)) {
       this.streams[key].close()
     }
     this.change()
@@ -380,17 +381,17 @@ export class WebApplication implements Destructor {
         this.extra_urls = [{ url: 'http://' + extIP + ':' + this.port }]
       }
     }
-    this.onReady()
+    this.onReady();
   }
   onReady() {
-    this.ensureFirewallOpen()
-    //console.log('onListen',result)
-    this.starting = false
-    this.started = true
-    console.log('Listening on', 'http://' + this.get_host() + ':' + this.port + '/')
-    this.bindAcceptCallbacks()
-    this.init_urls()
-    this.start_success({ urls: this.urls }) // initialize URLs ?
+    this.ensureFirewallOpen();
+    //console.log('onListen',result);
+    this.starting = false;
+    this.started = true;
+    this.bindAcceptCallbacks();
+    this.init_urls();
+    console.log('Listening on', 'http://' + this.get_host() + ':' + this.port + '/');
+    this.start_success({ urls: this.urls }); // initialize URLs ?
   }
   init_urls() {
     this.urls = [].concat(this.extra_urls)
@@ -795,7 +796,7 @@ text/vnd.wap.wml, application/x-javascript, and application/rss+xml.
         console.log('webapp.finish(keepalive)');
       }
     } else {
-      console.assert(!this.request.connection.stream.onWriteBufferEmpty);
+      // console.assert(!this.request.connection.stream.onWriteBufferEmpty);
       this.request.connection.stream.onWriteBufferEmpty = () => {
         this.request.connection.close();
         if (this.DEBUG) {
@@ -807,7 +808,7 @@ text/vnd.wap.wml, application/x-javascript, and application/rss+xml.
 }
 
 export class FileSystem {
-  constructor (
+  constructor(
     public entry
   ) {
   }

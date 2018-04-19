@@ -2,7 +2,7 @@ import { WSCOptions } from './options';
 import { HTTPRequest } from './request';
 import { DirectoryEntryHandler, RequestHandler } from './handlers';
 import { WebApplication, BaseHandler, FileSystem } from './webapp';
-import { clone, isArray, isObject } from 'lodash';
+import { clone, isArray, isObject, isNil, isString } from 'lodash';
 import { EntryCache } from './entrycache';
 export { FileSystem };
 
@@ -60,8 +60,7 @@ export class WSC {
     return s.replace(/{(\d+)}/g, function (match, number) {
       return typeof args[number] !== 'undefined'
         ? args[number]
-        : match
-        ;
+        : match;
     });
   }
   static parse_header(line) {
@@ -110,7 +109,8 @@ export class WSC {
       useCache,
       allowFolderCreation,
       state,
-      cacheKey
+      cacheKey,
+      fs: filesystem
     };
 
 
@@ -123,18 +123,35 @@ export class WSC {
   }
 
   static onRecusionError(error, data) {
-    console.log('onRecursionError', error, 'data', data);
-    data.callback(null);
-    /*try {
-      chrome.runtime.restart();
-    } catch (ex) {
-      if (chrome.runtime.lastError) {
-        chrome.runtime.reload();
+    // console.log('onRecursionError', error, 'data', data, '');
+    let matches = (!isNil(data.cacheKey) && isString(data.cacheKey))
+      ? data.cacheKey.match(/^(.*\/)([^\/]*)$/i)
+      : undefined;
+    if (matches) {
+      if (matches[2]) {
+        let match: string = matches[2];
+        if (match.includes('.')) {
+          // File
+          data.callback(null); // 404
+          return;
+        } else {
+          // Directory -> serve index file if modrewrite enabled
+          if (WSC.opts.optRewriteOnDirectoryNotFound) {
+            data.path = WSC.opts.optRewriteOnDirectoryNotFoundTo;
+            this.recursiveGetEntry(data.fs, [data.path], data.callback, false);
+            return;
+          } else {
+            data.callback(null); // 404
+            return;
+          }
+        }
+
       }
-    }*/
+    }
+    data.callback(null);
   }
 
-  static recurse(entry: DirectoryEntry | FileEntry, data: { path, callback, useCache, allowFolderCreation, state, cacheKey }) {
+  static recurse(entry: DirectoryEntry | FileEntry, data: { path, callback, useCache, allowFolderCreation, state, cacheKey, fs }) {
     data.allowFolderCreation = false; // Force off
     if (data.path.length === 0) {
       if (entry.name === 'TypeMismatchError') {
@@ -177,7 +194,6 @@ export class WSC {
     return headers
   }
   static ui82str(arr, startOffset) {
-    console.assert(arr)
     if (!startOffset) { startOffset = 0 }
     let length = arr.length - startOffset // XXX a few random exceptions here
     let str = ''

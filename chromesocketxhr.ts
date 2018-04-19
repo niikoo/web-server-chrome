@@ -1,7 +1,7 @@
 import { extend, bind } from 'lodash';
 import { WSC } from './common';
-import { Buffer } from "./buffer";
-import { IOStream } from "./stream";
+import { Buffer } from './buffer';
+import { IOStream } from './stream';
 
 declare let TextEncoder: any;
 declare let TextDecoder: any;
@@ -10,38 +10,39 @@ export class ChromeSocketXMLHttpRequest {
   chunks: any;
   responseDataParsed: { code: any; status: any; proto: any; headers: {}; };
 
-  onload = null
-  _finished = false
-  onerror = null
-  opts = null
+  onload = null;
+  _finished = false;
+  onerror = null;
+  opts = null;
 
-  timedOut = false
-  timeout = 0
-  timeoutId = null
+  timedOut = false;
+  timeout = 0;
+  timeoutId = null;
 
   stream: IOStream;
 
-  connecting = false
-  writing = false
-  haderror = false
-  closed = false
+  connecting = false;
+  writing = false;
+  haderror = false;
+  closed = false;
 
-  sockInfo = null
-  responseType = null
+  sockInfo = null;
+  responseType = null;
 
-  extraHeaders = {}
+  extraHeaders = {};
 
-  headersReceived = false
-  responseHeaders = null
-  responseHeadersParsed = null
-  responseBody = null
-  responseLength = null
-  responseBytesRead = null
-  requestBody = null
+  headersReceived = false;
+  responseHeaders = null;
+  responseHeadersParsed = null;
+  responseBody = null;
+  responseLength = null;
+  responseBytesRead = null;
+  requestBody = null;
 
-  secured = false
+  secured = false;
   uri;
   ontimeout;
+
   constructor() {
   }
 
@@ -50,10 +51,10 @@ export class ChromeSocketXMLHttpRequest {
     startIndex = startIndex || 0
     let match = false
     for (let i = startIndex; i < arr.length - s.length + 1; i++) {
-      if (arr[i] == s[0]) {
+      if (arr[i] === s[0]) {
         match = true
         for (let j = 1; j < s.length; j++) {
-          if (arr[i + j] != s[j]) {
+          if (arr[i + j] !== s[j]) {
             match = false
             break
           }
@@ -98,9 +99,9 @@ export class ChromeSocketXMLHttpRequest {
       'Host': this.uri.host
     }
     extend(headers, this.extraHeaders)
-    if (this.opts.method == 'GET') {
+    if (this.opts.method === 'GET') {
       //                headers['Content-Length'] == '0'
-    } else if (this.opts.method == 'POST') {
+    } else if (this.opts.method === 'POST') {
       if (this.requestBody) {
         headers['Content-Length'] = this.requestBody.byteLength.toString()
       } else {
@@ -127,7 +128,7 @@ export class ChromeSocketXMLHttpRequest {
     console.log('error:', data)
     this.haderror = true
     if (this.onerror) {
-      console.assert(typeof data == 'object')
+      console.assert(typeof data === 'object')
       data.target = { error: true }
       this.onerror(data)
     }
@@ -170,7 +171,7 @@ export class ChromeSocketXMLHttpRequest {
         code: result
       })
     } else {
-      if (this.uri.protocol == 'https:' && !this.secured) {
+      if (this.uri.protocol === 'https:' && !this.secured) {
         this.secured = true
         //console.log('securing socket',this.sockInfo.socketId)
         chrome.sockets.tcp['secure'](this.sockInfo.socketId, this.onConnect.bind(this))
@@ -192,7 +193,7 @@ export class ChromeSocketXMLHttpRequest {
     return this.uri.hostname
   }
   getPort() {
-    if (this.uri.protocol == 'https:') {
+    if (this.uri.protocol === 'https:') {
       return parseInt(this.uri.port) || 443
     } else {
       return parseInt(this.uri.port) || 80
@@ -212,7 +213,7 @@ export class ChromeSocketXMLHttpRequest {
     this.responseBytesRead = this.stream.readBuffer.size()
 
     if (response.headers['transfer-encoding'] &&
-      response.headers['transfer-encoding'] == 'chunked') {
+      response.headers['transfer-encoding'] === 'chunked') {
       this.chunks = new Buffer();
       //console.log('looking for an \\r\\n')
       this.stream.readUntil('\r\n', this.getNewChunk.bind(this))
@@ -238,7 +239,7 @@ export class ChromeSocketXMLHttpRequest {
       return
     }
     //console.log('looking for new chunk of len',len)
-    if (len == 0) {
+    if (len === 0) {
       //console.log('got all chunks',this.chunks)
       let body = this.chunks.flatten()
       this.onBody(body)
@@ -259,7 +260,7 @@ export class ChromeSocketXMLHttpRequest {
         responseXML: null
       }
     }
-    if (this.responseType && this.responseType.toLowerCase() == 'xml') {
+    if (this.responseType && this.responseType.toLowerCase() === 'xml') {
       evt.target.responseXML = (new DOMParser).parseFromString(new TextDecoder('utf-8').decode(body), 'text/xml')
     }
     this.onload(evt)
