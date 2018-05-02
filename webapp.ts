@@ -3,7 +3,6 @@
 /// <reference path='./../../node_modules/@types/chrome/chrome-webview.d.ts' />
 import { WSCOptions } from './options';
 import { Destructor } from './destructor';
-import { HttpRequest } from '@angular/common/http';
 import { isNil, isFunction } from 'lodash';
 import { WSC } from './common';
 import { HTTPRequest } from './request';

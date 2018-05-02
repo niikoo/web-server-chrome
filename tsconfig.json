@@ -1,9 +1,11 @@
 {
+  "$schema": "http://json.schemastore.org/tsconfig",
   "compileOnSave": false,
   "compilerOptions": {
     "sourceMap": true,
     "declaration": true,
     "baseUrl": ".",
+    "rootUrl": ".",
     "emitDecoratorMetadata": true,
     "experimentalDecorators": true,
     "module": "amd",
@@ -13,17 +15,12 @@
       "dom"
     ],
     "typeRoots": [
-      "./../../node_modules/@types/"
+      "node_modules/@types/"
     ],
     "types": [
       "node",
       "chrome"
     ],
-    "paths": {
-      "lodash": [
-        "./../../node_modules/lodash/"
-      ]
-    },
     "moduleResolution": "node"
   },
   "files": [
@@ -44,9 +41,6 @@
     "wsc-provider.ts"
   ],
   "exclude": [
-    "./../../node_modules/**/*",
-    "./../../**/*",
-    "./../../src/*",
-    "./../../src/**/*"
+    "node_modules/**/*"
   ]
 }
